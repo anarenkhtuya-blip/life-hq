@@ -168,12 +168,12 @@ function phaseOf(h){ return (h<5.5||h>=21.5)?'night':(h<8.5?'dawn':(h<17.5?'day'
 
 /* ================= rooms & cast config ================= */
 const ROOMS = [
-  { key:'health',   title:'HEALTH',   need:'health',   x:-8, z:-4.2, floor:0x8fa6ad, res:[] },
-  { key:'study',    title:'STUDY',    need:'study',    x: 0, z:-4.2, floor:0xb99e7e, res:[] },
-  { key:'social',   title:'SOCIAL',   need:'social',   x: 8, z:-4.2, floor:0xa78aa2, res:[] },
-  { key:'finances', title:'FINANCES', need:'finances', x:-8, z: 4.2, floor:0x8fae91, res:['chief-of-staff'] },
-  { key:'career',   title:'CAREER',   need:'career',   x: 0, z: 4.2, floor:0xbfa284, res:['job-scout','application-writer'] },
-  { key:'civic',    title:'YPG HALL', need:'civic',    x: 8, z: 4.2, floor:0xb08a8a, res:['ypg-producer'] }
+  { key:'health',   title:'HEALTH',   need:'health',   x:-8, z:-4.2, floor:0xc9a06a, wall:0xa8cfe0, res:[] },
+  { key:'study',    title:'STUDY',    need:'study',    x: 0, z:-4.2, floor:0xba9260, wall:0xf0d9a8, res:[] },
+  { key:'social',   title:'SOCIAL',   need:'social',   x: 8, z:-4.2, floor:0xc9a06a, wall:0xcdb3d6, res:[] },
+  { key:'finances', title:'FINANCES', need:'finances', x:-8, z: 4.2, floor:0xba9260, wall:0xaecdae, res:['chief-of-staff'] },
+  { key:'career',   title:'CAREER',   need:'career',   x: 0, z: 4.2, floor:0xc9a06a, wall:0xe8cba0, res:['job-scout','application-writer'] },
+  { key:'civic',    title:'YPG HALL', need:'civic',    x: 8, z: 4.2, floor:0xba9260, wall:0xe8b0b0, res:['ypg-producer'] }
 ];
 const ROOM_HOW = {
   finances:'Reply to the Sunday check-in with savings / spend, or tell Claude: "finances 70, saved ₮300k".',
@@ -184,11 +184,11 @@ const ROOM_HOW = {
   civic:'Tuya plans the week every Monday 9:00.'
 };
 const CAST = [
-  { key:'anar', name:'ANAR',  body:'web_male.glb',   hair:'web_Hair_SimpleParted.glb', color:0x5a8ac4, home:null },
-  { key:'job-scout', name:'SCOUT', body:'web_male.glb', hair:'web_Hair_Beard.glb',     color:0xa08c58, home:'career' },
-  { key:'chief-of-staff', name:'ODKO', body:'web_female.glb', hair:'web_Hair_Buns.glb', color:0x2e5a9e, home:'finances' },
-  { key:'application-writer', name:'INK', body:'web_male.glb', hair:'web_Hair_Buzzed.glb', color:0x3e8a52, home:'career' },
-  { key:'ypg-producer', name:'TUYA', body:'web_female.glb', hair:'web_Hair_Long.glb',  color:0xc04a4a, home:'civic' }
+  { key:'anar', name:'ANAR',  body:'web_male.glb',   hair:'web_Hair_SimpleParted.glb', color:0x6aa2e8, home:null },
+  { key:'job-scout', name:'SCOUT', body:'web_male.glb', hair:'web_Hair_Beard.glb',     color:0xd9b36a, home:'career' },
+  { key:'chief-of-staff', name:'ODKO', body:'web_female.glb', hair:'web_Hair_Buns.glb', color:0x5abfae, home:'finances' },
+  { key:'application-writer', name:'INK', body:'web_male.glb', hair:'web_Hair_Buzzed.glb', color:0x7ec98a, home:'career' },
+  { key:'ypg-producer', name:'TUYA', body:'web_female.glb', hair:'web_Hair_Long.glb',  color:0xe8798a, home:'civic' }
 ];
 const AGENT_META = {
   'anar':{ mission:"The Sim himself. Watches the plumbob, lives the life the agents support.", sched:"Full-time." },
@@ -201,24 +201,30 @@ const AGENT_META = {
 /* furniture: [file, dx, dz, rotYdeg, scale, dy] in room-local coords (-3..3) */
 const FURNITURE = {
   health: [ ['f_benchCushionLow',-1.4,-1.6,90], ['f_rugRectangle',0.8,0.6,0], ['f_radio',-2.6,-2.5,0,1,0],
-            ['f_plantSmall2',2.6,-2.6,0], ['f_trashcan',2.7,2.4,0] ],
+            ['f_plantSmall2',2.6,-2.6,0], ['f_trashcan',2.7,2.4,0], ['f_pottedPlant',-2.7,1.9,0],
+            ['f_lampRoundFloor',2.6,0.4,0], ['f_rugRound',-1.0,1.6,0] ],
   study:  [ ['f_bookcaseClosedWide',-1.2,-2.72,0], ['f_bookcaseOpen',1.4,-2.72,0], ['f_desk',0.4,0.8,180],
             ['f_chairDesk',0.4,1.7,0], ['f_books',0.15,0.8,20,1,0.76], ['f_lampRoundFloor',2.6,-1.8,0],
-            ['f_rugRound',-1.6,1.4,0] ],
+            ['f_rugRound',-1.6,1.4,0], ['f_pottedPlant',-2.7,2.2,0], ['f_tableCoffee',-1.6,1.4,0],
+            ['f_books',-1.75,1.3,15,1,0.42] ],
   social: [ ['f_loungeSofa',-1.2,-2.4,0], ['f_loungeChairRelax',1.9,-1.7,-35], ['f_tableCoffee',-0.9,-0.7,0],
             ['f_cabinetTelevision',-0.6,2.55,180], ['f_televisionModern',-0.6,2.5,180,1,0.74],
-            ['f_speaker',1.4,2.6,180], ['f_rugRound',0,0.4,0], ['f_pottedPlant',2.7,-2.7,0] ],
+            ['f_speaker',1.4,2.6,180], ['f_rugRound',0,0.4,0], ['f_pottedPlant',2.7,-2.7,0],
+            ['f_plantSmall1',-2.7,2.3,0], ['f_lampRoundFloor',2.6,1.6,0], ['f_sideTable',2.0,-2.6,0],
+            ['f_radio',2.0,-2.6,0,1,0.7] ],
   finances:[ ['f_desk',-0.6,-1.9,0], ['f_chairDesk',-0.6,-1.0,180], ['f_computerScreen',-0.85,-2.05,0,1,0.76],
             ['f_computerKeyboard',-0.55,-1.75,0,1,0.76], ['f_cabinetBedDrawer',2.5,-2.5,0],
-            ['f_cardboardBoxClosed',2.5,-1.4,15], ['f_lampSquareTable',0.4,-2.1,0,1,0.76], ['f_plantSmall1',-2.7,-2.6,0],
+            ['f_cardboardBoxClosed',2.5,-1.4,15], ['f_lampSquareTable',0.4,-2.1,0,1,0.76], ['f_pottedPlant',2.6,1.5,0], ['f_rugRound',-0.6,0.6,0], ['f_lampRoundFloor',-2.7,1.8,0], ['f_plantSmall1',-2.7,-2.6,0],
             ['f_sideTable',2.5,2.3,0] ],
   career: [ ['f_deskCorner',-2.0,-2.0,0], ['f_chairDesk',-1.3,-1.3,225], ['f_laptop',-2.05,-1.85,35,1,0.76],
             ['f_desk',1.7,-2.0,0], ['f_chairDesk',1.7,-1.1,180], ['f_computerScreen',1.5,-2.15,0,1,0.76],
             ['f_computerKeyboard',1.75,-1.85,0,1,0.76], ['f_coatRackStanding',2.75,0.9,0],
-            ['f_bookcaseOpen',-2.72,1.4,90], ['f_rugRectangle',0,2.2,0] ],
+            ['f_bookcaseOpen',-2.72,1.4,90], ['f_rugRectangle',0,2.2,0], ['f_pottedPlant',2.75,-2.6,0],
+            ['f_plantSmall2',-2.7,2.6,0], ['f_lampRoundFloor',2.6,2.4,0] ],
   civic:  [ ['f_tableCross',0,-0.4,0,0.75], ['f_chair',-0.9,0.7,180], ['f_chair',0.9,0.7,180], ['f_chair',-0.9,-1.4,0],
             ['f_chair',0.9,-1.4,0], ['f_sideTable',-2.6,-2.5,0], ['f_kitchenCoffeeMachine',-2.6,-2.5,0,1,0.68],
-            ['f_speaker',2.7,-2.6,0], ['f_coatRackStanding',0,2.9,180] ]
+            ['f_speaker',2.7,-2.6,0], ['f_coatRackStanding',0,2.9,180], ['f_pottedPlant',-2.7,2.4,0],
+            ['f_rugRound',0,-0.4,0], ['f_lampRoundFloor',2.6,1.8,0] ]
 };
 /* fix: rugDoormat not copied — swap to rugRectangle if missing handled at load */
 
@@ -229,6 +235,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
+const lampLights = [];
 
 const labelRenderer = new CSS2DRenderer({ element: $('labels') });
 const aspect = () => window.innerWidth / window.innerHeight;
@@ -255,7 +262,7 @@ if (!WALLPAPER){
 }
 
 /* lights (phase-aware) */
-const hemi = new THREE.HemisphereLight(0xbfd6ff, 0x54463a, 0.9); scene.add(hemi);
+const hemi = new THREE.HemisphereLight(0xcfe0ff, 0x8a6f52, 1.0); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(14, 22, 8); sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -268,13 +275,15 @@ function applyPhase(){
   document.body.classList.remove('phase-night','phase-dawn','phase-day','phase-dusk');
   document.body.classList.add('phase-'+ph);
   const cfg = {
-    day:   { sun:0xfff4e0, si:1.7, hemi:0xbfd6ff, hi:0.95 },
+    day:   { sun:0xfff2d8, si:1.8, hemi:0xcfe0ff, hi:1.05 },
     dawn:  { sun:0xffb27a, si:1.2, hemi:0x8a7aa8, hi:0.75 },
     dusk:  { sun:0xff9a6a, si:1.1, hemi:0x7a6a9a, hi:0.7 },
-    night: { sun:0x9ab0ff, si:0.55, hemi:0x3a4a6a, hi:0.45 }
+    night: { sun:0xaebfff, si:0.6, hemi:0x55628a, hi:0.6 }
   }[ph];
   sun.color.setHex(cfg.sun); sun.intensity = cfg.si;
   hemi.color.setHex(cfg.hemi); hemi.intensity = cfg.hi;
+  const lampI = ph==='night' ? 1.5 : (ph==='day' ? 0.15 : 0.8);
+  for (const pl of lampLights) pl.intensity = lampI;
   const days=['SUN','MON','TUE','WED','THU','FRI','SAT']; const d=new Date();
   $('chip-phase').textContent = (ph==='night'?'☾ ':'☀ ')+ph.toUpperCase()+' · '+days[d.getDay()]+' '+
     ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
@@ -284,8 +293,10 @@ applyPhase(); setInterval(applyPhase, 30000);
 /* ================= build house ================= */
 const matWall = new THREE.MeshStandardMaterial({ color:0xe8e2d4, roughness:0.9 });
 const matWallDark = new THREE.MeshStandardMaterial({ color:0x8a8276, roughness:0.9 });
-const plinth = new THREE.Mesh(new THREE.BoxGeometry(25.4, 0.6, 17.6), new THREE.MeshStandardMaterial({ color:0x2a2a3a, roughness:1 }));
+const plinth = new THREE.Mesh(new THREE.BoxGeometry(25.4, 0.6, 17.6), new THREE.MeshStandardMaterial({ color:0x9a7a54, roughness:0.95 }));
 plinth.position.y = -0.31; plinth.receiveShadow = true; scene.add(plinth);
+const lawn = new THREE.Mesh(new THREE.BoxGeometry(44, 0.3, 34), new THREE.MeshStandardMaterial({ color:0x86b86a, roughness:1 }));
+lawn.position.y = -0.62; lawn.receiveShadow = true; scene.add(lawn);
 
 const roomObjs = {};
 const clickFloors = [];
@@ -295,12 +306,18 @@ for (const r of ROOMS){
     new THREE.MeshStandardMaterial({ color:r.floor, roughness:0.95 }));
   floor.position.y = 0.11; floor.receiveShadow = true; floor.userData.roomKey = r.key;
   g.add(floor); clickFloors.push(floor);
-  /* north wall (z-) + west wall (x-) half height; outer edges get full-ish */
-  const wallN = new THREE.Mesh(new THREE.BoxGeometry(7.6, 1.25, 0.22), r.z<0 ? matWall : matWallDark);
-  wallN.position.set(0, 0.84, -3.8); wallN.castShadow = true; wallN.receiveShadow = true; g.add(wallN);
-  const wallW = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.25, 7.6), matWall);
-  wallW.position.set(-3.8, 0.84, 0); wallW.castShadow = true; wallW.receiveShadow = true; g.add(wallW);
-  if (r.x === 8){ const wallE = wallW.clone(); wallE.position.x = 3.8; g.add(wallE); }
+  /* pastel walls with white trim */
+  const wallMat = new THREE.MeshStandardMaterial({ color:r.wall||0xe8e2d4, roughness:0.9 });
+  const trimMat = new THREE.MeshStandardMaterial({ color:0xf7f2e6, roughness:0.85 });
+  function mkWall(w, d, x, z){
+    const wl = new THREE.Mesh(new THREE.BoxGeometry(w, 1.25, d), wallMat);
+    wl.position.set(x, 0.84, z); wl.castShadow = true; wl.receiveShadow = true; g.add(wl);
+    const tr = new THREE.Mesh(new THREE.BoxGeometry(w===7.6?7.7:0.3, 0.09, d===7.6?7.7:0.3), trimMat);
+    tr.position.set(x, 1.51, z); g.add(tr);
+  }
+  mkWall(7.6, 0.22, 0, -3.8);
+  mkWall(0.22, 7.6, -3.8, 0);
+  if (r.x === 8) mkWall(0.22, 7.6, 3.8, 0);
   /* label */
   const lbl = document.createElement('div'); lbl.className='roomlabel'; lbl.textContent = r.title;
   const lblObj = new CSS2DObject(lbl); lblObj.position.set(0, 1.9, -3.4); g.add(lblObj);
@@ -322,6 +339,18 @@ const castFiles = [...new Set(CAST.flatMap(c=>[c.body, c.hair]))];
 totalCount = furnitureFiles.length + castFiles.length + 1;
 
 /* furniture placement */
+async function placeGarden(){
+  try {
+    const g = await loadGLB('./f_pottedPlant.glb');
+    const spots = [[-14.5,-10],[14.5,-10],[-14.5,10],[14.5,10],[0,-10.6],[-7,10.6],[7,10.6]];
+    for (const [gx,gz] of spots){
+      const p = g.scene.clone(true);
+      p.traverse(o=>{ if (o.isMesh){ o.castShadow = true; } });
+      p.position.set(gx, -0.47, gz); p.scale.setScalar(4.2);
+      scene.add(p);
+    }
+  } catch(e){}
+}
 async function placeFurniture(){
   for (const r of ROOMS){
     for (const item of (FURNITURE[r.key]||[])){
@@ -335,6 +364,11 @@ async function placeFurniture(){
       obj.rotation.y = rot*Math.PI/180;
       obj.scale.setScalar(s*2.0);
       scene.add(obj);
+      if (/lamp/i.test(file)){
+        const pl = new THREE.PointLight(0xffd9a0, 0.3, 7, 2);
+        pl.position.set(r.x+dx, 1.4, r.z+dz);
+        scene.add(pl); lampLights.push(pl);
+      }
     }
   }
   furnitureFiles.forEach(()=>tick());
@@ -623,6 +657,7 @@ function animate(){
   try {
     if (!renderer.getContext()) throw new Error('no webgl');
     await placeFurniture();
+    await placeGarden();
     await buildCast();
     $('loader').style.opacity = 0;
     setTimeout(()=> $('loader').remove(), 900);
