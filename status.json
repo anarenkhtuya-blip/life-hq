@@ -1,0 +1,20 @@
+{
+  "agent-status": {
+    "job-scout":          { "status": "idle",  "activity": "First patrol tomorrow, 7:30" },
+    "chief-of-staff":     { "status": "idle",  "activity": "First brief Tue, 7:35" },
+    "application-writer": { "status": "ready", "activity": "Bring me a posting!" },
+    "ypg-producer":       { "status": "idle",  "activity": "Next session Mon 9:00" },
+    "anar":               { "status": "ready", "activity": "My agents work while I live" }
+  },
+  "life-status": {
+    "week": "Week of Aug 10, 2026",
+    "mood": 60,
+    "events": [
+      "Life HQ deployed — 4 cloud agents on staff",
+      "Job Scout patrols daily 07:30",
+      "Chief of Staff briefs weekdays 07:35",
+      "YPG plan lands Mondays 09:00",
+      "Life check-in Sundays 20:00 — reply to feed the bars"
+    ]
+  }
+}
