@@ -143,11 +143,33 @@ const DEFAULT_DATA = {
   }
 };
 let DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+let prevStatuses = {}, seenEvents = new Set();
 function poll(){
   fetch('./status.json',{cache:'no-store'}).then(r=>{ if(!r.ok) throw 0; return r.json(); })
-    .then(j=>{ if(j&&j['agent-status']) DATA['agent-status']=j['agent-status'];
-               if(j&&j['life-status'])  DATA['life-status'] =j['life-status'];
-               refreshHUD(); refreshChips(); })
+    .then(j=>{
+      if(j&&j['agent-status']){
+        for (const k of Object.keys(j['agent-status'])){
+          const ns = j['agent-status'][k].status;
+          if (prevStatuses[k] && prevStatuses[k] !== ns && (ns==='done'||ns==='alert') && typeof celebrate==='function') celebrate(k);
+          prevStatuses[k] = ns;
+        }
+        DATA['agent-status']=j['agent-status'];
+      }
+      if(j&&j['life-status']){
+        DATA['life-status'] =j['life-status'];
+        for (const e of (j['life-status'].events||[])){
+          const str = typeof e==='string'? e : JSON.stringify(e);
+          if (!seenEvents.has(str) && seenEvents.size){ 
+            if (typeof pushLine==='function'){
+              const m = String(typeof e==='string'?e:(e.msg||'')).slice(0,120);
+              pushLine('now', (typeof e==='object'&&e.who)||'system', m, false);
+            }
+          }
+          seenEvents.add(str);
+        }
+      }
+      refreshHUD(); refreshChips();
+    })
     .catch(()=>{});
 }
 poll(); setInterval(poll, 60000);
@@ -186,22 +208,27 @@ const ROOM_HOW = {
 const CAST = [
   { key:'anar', name:'ANAR',  body:'web_char_anar.glb', hair:'web_Hair_SimpleParted.glb', color:0x6aa2e8, home:null,
     walk:'Walk_Loop', speed:1.6, sitBias:0.25, danceBias:0.06,
+    acts:[['Idle_TalkingPhone_Loop',4.5],['Interact',2.2,1],['Yes',1.6,1]],
     persona:'The Sim himself — curious, everywhere at once, checks on everyone.',
     quips:["My agents work while I live","Plumbob's looking green today","Just checking on the team","Fulbright, then the world"] },
   { key:'job-scout', name:'SCOUT', body:'web_char_job-scout.glb', hair:'web_Hair_Beard.glb', color:0xd9b36a, home:'career',
     walk:'Walk_Loop', speed:1.95, sitBias:0.3, danceBias:0.02,
+    acts:[['Idle_No_Loop',3],['Idle_TalkingPhone_Loop',4],['Interact',2.2,1]],
     persona:'Restless hunter. Paces fast, reads every job board twice, never pads a report.',
     quips:["Sweeping the boards…","Canva careers, third pass","Stripe posted something new?","Only fresh roles. No stale listings."] },
   { key:'chief-of-staff', name:'ODKO', body:'web_char_chief-of-staff.glb', hair:'web_Hair_Buns.glb', color:0x5abfae, home:'finances',
     walk:'Walk_Formal_Loop', speed:1.7, sitBias:0.45, danceBias:0.01,
+    acts:[['Idle_FoldArms_Loop',5],['Consume',3,1],['Chest_Open',2.4,1]],
     persona:'Composed and exact. Walks like a minister, keeps the ledger and the calendar spotless.',
     quips:["Inbox: nearly zero","Brief lands at 7:35 sharp","The ledger balances. Again.","Priorities: three. Always three."] },
   { key:'application-writer', name:'INK', body:'web_char_application-writer.glb', hair:'web_Hair_Buzzed.glb', color:0x7ec98a, home:'career',
     walk:'Walk_Loop', speed:1.15, sitBias:0.6, danceBias:0.03,
+    acts:[['Idle_FoldArms_Loop',4],['Consume',3,1]],
     persona:'Slow walker, fast writer. Lives at the desk, reads every draft aloud twice.',
     quips:["Drafting a killer opener…","Reading it aloud. Twice.","Your voice, sharpened","Bring me a posting!"] },
   { key:'ypg-producer', name:'TUYA', body:'web_char_ypg-producer.glb', hair:'web_Hair_Long.glb', color:0xe8798a, home:'civic',
     walk:'Walk_Loop', speed:1.5, sitBias:0.3, danceBias:0.12,
+    acts:[['Farm_Watering',4,1],['Consume',3,1],['Yes',1.6,1]],
     persona:'Warm organizer with event energy. Straightens chairs, remembers every member\'s name.',
     quips:["Committee meets Monday!","Chairs: straightened","Coffee machine is ON","New members incoming"] }
 ];
@@ -353,7 +380,7 @@ function tick(msg){ loadedCount++; $('loadmsg').textContent = 'BUILDING LIFE HQ�
 
 const furnitureFiles = [...new Set(Object.values(FURNITURE).flat().map(f=>f[0]))];
 const castFiles = [...new Set(CAST.flatMap(c=>[c.body, c.hair]))];
-totalCount = furnitureFiles.length + castFiles.length + 1;
+totalCount = furnitureFiles.length + castFiles.length + 2;
 
 /* furniture placement */
 async function placeGarden(){
@@ -395,7 +422,8 @@ async function placeFurniture(){
 const chars = [];
 async function buildCast(){
   const animGltf = await loadGLB('./web_anims.glb'); tick();
-  const clips = animGltf.animations;
+  const animGltf2 = await loadGLB('./web_anims2.glb'); tick();
+  const clips = [...animGltf.animations, ...animGltf2.animations];
   const clip = n => clips.find(c=>c.name===n);
   for (const c of CAST){
     const bodyGltf = await loadGLB('./'+c.body);
@@ -432,7 +460,7 @@ async function buildCast(){
     /* mixer */
     const mixer = new THREE.AnimationMixer(root);
     const actions = {};
-    for (const n of ['Idle_Loop','Idle_Talking_Loop','Walk_Loop','Walk_Formal_Loop','Sitting_Enter','Sitting_Idle_Loop','Sitting_Talking_Loop','Sitting_Exit','Interact','Dance_Loop','Fixing_Kneeling']){
+    for (const n of ['Idle_Loop','Idle_Talking_Loop','Walk_Loop','Walk_Formal_Loop','Sitting_Enter','Sitting_Idle_Loop','Sitting_Talking_Loop','Sitting_Exit','Interact','Dance_Loop','Fixing_Kneeling','Idle_TalkingPhone_Loop','Idle_FoldArms_Loop','Consume','Yes','Idle_No_Loop','Farm_Watering','Chest_Open']){
       const cl = clip(n); if (cl) actions[n] = mixer.clipAction(cl);
     }
     const home = ROOMS.find(rr=>rr.key===c.home);
@@ -449,6 +477,7 @@ async function buildCast(){
 function playAction(ch, name, once){
   const a = ch.actions[name]; if (!a || ch.cur===a) return;
   a.reset();
+  a.timeScale = /^(Walk|Jog)/.test(name) ? (ch.speed||1.5)/1.55 : 1;
   if (once){ a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true; }
   else a.setLoop(THREE.LoopRepeat);
   if (ch.cur) { a.crossFadeFrom(ch.cur, 0.28, true); }
@@ -457,23 +486,130 @@ function playAction(ch, name, once){
 }
 
 /* wander behavior */
+/* --- room/lane router: rooms open to the south; gaps at x=±4 and perimeter --- */
+function roomAt(x, z){
+  for (const r of ROOMS) if (Math.abs(x-r.x)<=3.9 && Math.abs(z-r.z)<=3.9) return r;
+  return null;
+}
+function laneZof(r){ return r.z < 0 ? 0.05 : 8.5; }
+function route(from, to){
+  const rA = roomAt(from.x, from.z), rB = roomAt(to.x, to.z);
+  const pts = [];
+  if (rA && rB && rA !== rB){
+    const zA = laneZof(rA), zB = laneZof(rB);
+    pts.push(new THREE.Vector3(rA.x, 0.22, zA));
+    if (zA !== zB){
+      const gaps = [-4, 4, 12.6, -12.6];
+      let xg = gaps[0], best = 1e9;
+      for (const g of gaps){ const d = Math.abs(g-rA.x)+Math.abs(g-rB.x); if (d < best){ best = d; xg = g; } }
+      pts.push(new THREE.Vector3(xg, 0.22, zA));
+      pts.push(new THREE.Vector3(xg, 0.22, zB));
+    }
+    pts.push(new THREE.Vector3(rB.x, 0.22, zB));
+  } else if (rA && !rB){
+    pts.push(new THREE.Vector3(rA.x, 0.22, laneZof(rA)));
+  } else if (!rA && rB){
+    pts.push(new THREE.Vector3(rB.x, 0.22, laneZof(rB)));
+  }
+  pts.push(to.clone ? to.clone() : new THREE.Vector3(to.x, 0.22, to.z));
+  /* drop useless waypoints */
+  const out = [];
+  for (const p of pts){ if (!out.length || out[out.length-1].distanceTo(p) > 0.4) out.push(p); }
+  return out;
+}
+function setDestination(ch, vec, seat){
+  ch.seat = seat || null;
+  ch.path = route(ch.root.position, vec);
+  ch.state = 'walk';
+  playAction(ch, ch.cfg.walk || 'Walk_Loop');
+}
 function pickTarget(ch){
   const c = ch.cfg;
-  /* maybe take a free seat */
   if (Math.random() < (c.sitBias||0.3)){
     const opts = SEATS.filter(st=>!st.busy && (!c.home || st.room===c.home || Math.random()<0.25));
     if (opts.length){
       const st = opts[Math.floor(Math.random()*opts.length)];
-      st.busy = true; ch.seat = st;
-      return new THREE.Vector3(st.x + Math.sin(st.rot)*0.7, 0.22, st.z + Math.cos(st.rot)*0.7);
+      st.busy = true;
+      setDestination(ch, new THREE.Vector3(st.x + Math.sin(st.rot)*0.7, 0.22, st.z + Math.cos(st.rot)*0.7), st);
+      return;
     }
   }
   let room;
-  if (c.home && Math.random() < 0.6) room = ROOMS.find(r=>r.key===c.home);
+  if (c.home && Math.random() < 0.55) room = ROOMS.find(r=>r.key===c.home);
   else room = ROOMS[Math.floor(Math.random()*ROOMS.length)];
-  return new THREE.Vector3(room.x + (Math.random()*4.6-2.3), 0.22, room.z + (Math.random()*4.6-2.3));
+  setDestination(ch, new THREE.Vector3(room.x + (Math.random()*4.6-2.3), 0.22, room.z + (Math.random()*4.6-2.3)), null);
 }
 function releaseSeat(ch){ if (ch.seat){ ch.seat.busy=false; ch.seat=null; } }
+
+/* --- greetings --- */
+const GREETS = ["Сайн уу!","Hey!","How's the week going?","Did you see the ticker?","Coffee's fresh","Nice plumbob"];
+const greetCooldown = {};
+function tryGreetings(){
+  for (let i=0;i<chars.length;i++) for (let j=i+1;j<chars.length;j++){
+    const a = chars[i], b = chars[j];
+    if (!['idle','walk'].includes(a.state) || !['idle','walk'].includes(b.state)) continue;
+    const key = a.cfg.key+'|'+b.cfg.key;
+    if ((greetCooldown[key]||0) > perfNow()) continue;
+    if (a.root.position.distanceTo(b.root.position) < 1.35){
+      greetCooldown[key] = perfNow() + 90;
+      for (const [me, other] of [[a,b],[b,a]]){
+        releaseSeat(me);
+        me.state = 'greet'; me.t = 4.2; me.path = null;
+        const dir = new THREE.Vector3().subVectors(other.root.position, me.root.position);
+        me.root.rotation.y = Math.atan2(dir.x, dir.z);
+      }
+      playAction(a, a.actions['Yes'] ? 'Yes' : 'Idle_Talking_Loop', !!a.actions['Yes']);
+      playAction(b, 'Idle_Talking_Loop');
+      a.bub.textContent = GREETS[Math.floor(Math.random()*GREETS.length)];
+      b.bub.textContent = GREETS[Math.floor(Math.random()*GREETS.length)];
+      a.bub.style.opacity = 1; b.bub.style.opacity = 1;
+      a.bubT = -0.1; b.bubT = -0.1;
+    }
+  }
+}
+function perfNow(){ return performance.now()/1000; }
+setInterval(tryGreetings, 700);
+
+/* --- confetti --- */
+const bursts = [];
+function confetti(pos){
+  const N = 90, geo = new THREE.BufferGeometry();
+  const p = new Float32Array(N*3), v = [];
+  const colors = new Float32Array(N*3);
+  const palette = [[1,.42,.42],[1,.85,.37],[.49,.88,.54],[.42,.63,.91],[.79,.63,1]];
+  for (let i=0;i<N;i++){
+    p[i*3]=pos.x+(Math.random()-.5)*.4; p[i*3+1]=pos.y+2.2; p[i*3+2]=pos.z+(Math.random()-.5)*.4;
+    v.push([(Math.random()-.5)*2.4, 1.5+Math.random()*2, (Math.random()-.5)*2.4]);
+    const c = palette[i%5]; colors[i*3]=c[0]; colors[i*3+1]=c[1]; colors[i*3+2]=c[2];
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(p,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.09, vertexColors:true }));
+  scene.add(pts);
+  bursts.push({ pts, v, life:2.4 });
+}
+function updateBursts(dt){
+  for (let i=bursts.length-1;i>=0;i--){
+    const b = bursts[i]; b.life -= dt;
+    const arr = b.pts.geometry.attributes.position.array;
+    for (let k=0;k<b.v.length;k++){
+      b.v[k][1] -= 4.5*dt;
+      arr[k*3]   += b.v[k][0]*dt;
+      arr[k*3+1] = Math.max(0.05, arr[k*3+1] + b.v[k][1]*dt);
+      arr[k*3+2] += b.v[k][2]*dt;
+    }
+    b.pts.geometry.attributes.position.needsUpdate = true;
+    b.pts.material.opacity = Math.min(1, b.life); b.pts.material.transparent = true;
+    if (b.life <= 0){ scene.remove(b.pts); bursts.splice(i,1); }
+  }
+}
+function celebrate(key){
+  const ch = chars.find(c=>c.cfg.key===key); if (!ch) return;
+  releaseSeat(ch); ch.path = null;
+  ch.state = 'act'; ch.t = 4.5; playAction(ch, 'Dance_Loop');
+  confetti(ch.root.position); blip();
+}
+
 let plumbT = 0;
 function updateChar(ch, dt){
   ch.mixer.update(dt);
@@ -483,24 +619,32 @@ function updateChar(ch, dt){
   ch.t -= dt;
   if (ch.state==='idle' && ch.t<=0){
     const roll = Math.random(), c = ch.cfg;
-    if (roll < 0.6){ ch.target = pickTarget(ch); ch.state='walk'; playAction(ch, c.walk||'Walk_Loop'); }
-    else if (roll < 0.6+(c.danceBias||0.04) && ch.actions['Dance_Loop']){ ch.state='act'; ch.t=4.5; playAction(ch,'Dance_Loop'); }
-    else if (roll < 0.78 && ch.actions['Interact']){ ch.state='act'; ch.t=2.2; playAction(ch,'Interact',true); }
-    else if (roll < 0.84 && ch.actions['Fixing_Kneeling']){ ch.state='act'; ch.t=3.2; playAction(ch,'Fixing_Kneeling',true); }
+    if (roll < 0.55){ pickTarget(ch); }
+    else if (roll < 0.55+(c.danceBias||0.04) && ch.actions['Dance_Loop']){ ch.state='act'; ch.t=4.5; playAction(ch,'Dance_Loop'); }
+    else if (roll < 0.85 && c.acts && c.acts.length){
+      const [nm, dur, once] = c.acts[Math.floor(Math.random()*c.acts.length)];
+      if (ch.actions[nm]){ ch.state='act'; ch.t = dur; playAction(ch, nm, !!once); }
+      else { ch.t = 2; }
+    }
+    else if (roll < 0.9 && ch.actions['Fixing_Kneeling']){ ch.state='act'; ch.t=3.2; playAction(ch,'Fixing_Kneeling',true); }
     else { ch.t = 3+Math.random()*5; }
   }
-  else if (ch.state==='walk' && ch.target){
+  else if (ch.state==='walk'){
+    if (!ch.path || !ch.path.length){ ch.state='idle'; ch.t=1; playAction(ch,'Idle_Loop'); return; }
+    const target = ch.path[0];
     const pos = ch.root.position;
-    const dir = new THREE.Vector3().subVectors(ch.target, pos); dir.y = 0;
+    const dir = new THREE.Vector3().subVectors(target, pos); dir.y = 0;
     const dist = dir.length();
-    if (dist < 0.15){
-      if (ch.seat){
-        ch.root.position.set(ch.seat.x, 0.22, ch.seat.z);
-        ch.root.rotation.y = ch.seat.rot;
-        ch.state='sitEnter'; ch.t=1.0; playAction(ch,'Sitting_Enter',true);
-      } else { ch.state='idle'; ch.t = 2.5+Math.random()*6; playAction(ch,'Idle_Loop'); }
-    }
-    else {
+    if (dist < 0.18){
+      ch.path.shift();
+      if (!ch.path.length){
+        if (ch.seat){
+          ch.root.position.set(ch.seat.x, 0.22, ch.seat.z);
+          ch.root.rotation.y = ch.seat.rot;
+          ch.state='sitEnter'; ch.t=1.0; playAction(ch,'Sitting_Enter',true);
+        } else { ch.state='idle'; ch.t = 2.5+Math.random()*6; playAction(ch,'Idle_Loop'); }
+      }
+    } else {
       dir.normalize();
       pos.addScaledVector(dir, Math.min(ch.speed*dt, dist));
       const yaw = Math.atan2(dir.x, dir.z);
@@ -516,9 +660,11 @@ function updateChar(ch, dt){
     if (st){ ch.root.position.set(st.x + Math.sin(st.rot)*0.8, 0.22, st.z + Math.cos(st.rot)*0.8); }
     ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop');
   }
+  else if (ch.state==='greet' && ch.t<=0){ ch.state='idle'; ch.t=1.5+Math.random()*3; playAction(ch,'Idle_Loop'); }
   else if (ch.state==='act' && ch.t<=0){ ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop'); }
   /* bubble: live activity + personality quips */
   ch.bubT -= dt;
+  if (ch.state==='greet') return;
   const show = ch.bubT <= 0 && ch.bubT > -6;
   if (ch.bubT <= -18) { ch.bubT = 9+Math.random()*13; ch.nextQuip = null; }
   const st2 = DATA['agent-status'][ch.cfg.key];
@@ -690,6 +836,20 @@ $('soundbtn').addEventListener('click', ()=>{
   else clearInterval(padTimer);
 });
 
+/* follow cam */
+let followChar = null;
+canvas.addEventListener('dblclick', e=>{
+  if (WALLPAPER) return;
+  mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1;
+  ray.setFromCamera(mouse, camera);
+  const roots = chars.map(c=>c.root);
+  const hit = ray.intersectObjects(roots, true)[0];
+  if (hit){ let n = hit.object; while (n && !roots.includes(n)) n = n.parent;
+    followChar = chars.find(c=>c.root===n) || null; }
+  else followChar = null;
+});
+document.addEventListener('keydown', e=>{ if (e.key==='Escape') followChar = null; });
+
 /* ================= main loop ================= */
 const clock = new THREE.Clock();
 const FPS_CAP = WALLPAPER ? 24 : 60;
@@ -708,7 +868,14 @@ function animate(){
     camera.position.z = Math.cos(0.79 + Math.sin(sway)*0.07) * r;
     camera.position.y = 18;
     camera.lookAt(0, 0, 0.6);
-  } else if (controls) controls.update();
+  } else if (controls){
+    if (followChar){
+      controls.target.lerp(followChar.root.position.clone().setY(1.1), 0.08);
+      camera.zoom += (2.1 - camera.zoom)*0.05; camera.updateProjectionMatrix();
+    }
+    controls.update();
+  }
+  updateBursts(step);
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
 }
