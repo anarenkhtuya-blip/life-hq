@@ -203,7 +203,8 @@ const ROOM_HOW = {
   career:'Scout reports daily 7:30. Paste any posting in a chat to summon Ink.',
   study:'Fulbright / Australia Awards — tell Claude "study 80, personal statement drafted".',
   social:'Your Sim needs people time. Update it at the Sunday check-in.',
-  civic:'Tuya plans the week every Monday 9:00.'
+  civic:'Tuya plans the week every Monday 9:00.',
+  bedroom:'Everyone sleeps here 23:00–6:00 Ulaanbaatar time. Beds assigned — check the name tags.'
 };
 const CAST = [
   { key:'anar', name:'ANAR',  body:'web_char_anar.glb', hair:'web_Hair_SimpleParted.glb', color:0x6aa2e8, home:null,
@@ -356,23 +357,155 @@ for (const r of ROOMS){
     new THREE.MeshStandardMaterial({ color:r.floor, roughness:0.95 }));
   floor.position.y = 0.11; floor.receiveShadow = true; floor.userData.roomKey = r.key;
   g.add(floor); clickFloors.push(floor);
-  /* pastel walls with white trim */
-  const wallMat = new THREE.MeshStandardMaterial({ color:r.wall||0xe8e2d4, roughness:0.9 });
-  const trimMat = new THREE.MeshStandardMaterial({ color:0xf7f2e6, roughness:0.85 });
-  function mkWall(w, d, x, z){
-    const wl = new THREE.Mesh(new THREE.BoxGeometry(w, 1.25, d), wallMat);
-    wl.position.set(x, 0.84, z); wl.castShadow = true; wl.receiveShadow = true; g.add(wl);
-    const tr = new THREE.Mesh(new THREE.BoxGeometry(w===7.6?7.7:0.3, 0.09, d===7.6?7.7:0.3), trimMat);
-    tr.position.set(x, 1.51, z); g.add(tr);
-  }
-  mkWall(7.6, 0.22, 0, -3.8);
-  mkWall(0.22, 7.6, -3.8, 0);
-  if (r.x === 8) mkWall(0.22, 7.6, 3.8, 0);
   /* label */
   const lbl = document.createElement('div'); lbl.className='roomlabel'; lbl.textContent = r.title;
   const lblObj = new CSS2DObject(lbl); lblObj.position.set(0, 1.9, -3.4); g.add(lblObj);
   roomObjs[r.key] = g;
 }
+
+/* ================= real-house shell ================= */
+const FLOOR2_Y = 3.05, WALL_H = 2.0, LOW_H = 1.12;
+const trimMatG = new THREE.MeshStandardMaterial({ color:0xf7f2e6, roughness:0.85 });
+const glassMat = new THREE.MeshStandardMaterial({ color:0xbfe0f0, roughness:0.1, metalness:0.1, transparent:true, opacity:0.35 });
+const wallMatOuter = new THREE.MeshStandardMaterial({ color:0xeadfca, roughness:0.9 });
+function wallRun(x1,z1,x2,z2,h,gaps,yBase=0){
+  const horiz = Math.abs(x2-x1) > Math.abs(z2-z1);
+  const len = horiz ? (x2-x1) : (z2-z1);
+  const segs = [];
+  let cur = 0;
+  const sorted = (gaps||[]).slice().sort((a,b)=>a.c-b.c);
+  for (const g of sorted){ segs.push([cur, g.c-g.w/2, null]); segs.push([g.c-g.w/2, g.c+g.w/2, g]); cur = g.c+g.w/2; }
+  segs.push([cur, Math.abs(len), null]);
+  const dir = Math.sign(len)||1;
+  for (const [a,b,g] of segs){
+    const L = b-a; if (L <= 0.01) continue;
+    const mid = (a+b)/2;
+    const cx = horiz ? x1 + dir*mid : x1;
+    const cz = horiz ? z1 : z1 + dir*mid;
+    if (!g){
+      const w = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.22, h, horiz?0.22:L), wallMatOuter);
+      w.position.set(cx, yBase + h/2, cz); w.castShadow = true; w.receiveShadow = true; scene.add(w);
+      const t = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.3, 0.09, horiz?0.3:L), trimMatG);
+      t.position.set(cx, yBase + h + 0.045, cz); scene.add(t);
+    } else if (g.win){
+      const sill = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.22, 0.8, horiz?0.22:L), wallMatOuter);
+      sill.position.set(cx, yBase+0.4, cz); sill.castShadow = true; scene.add(sill);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.22, h-1.6, horiz?0.22:L), wallMatOuter);
+      head.position.set(cx, yBase + 1.6 + (h-1.6)/2, cz); head.castShadow = true; scene.add(head);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.1, 0.8, horiz?0.1:L), glassMat);
+      glass.position.set(cx, yBase+1.2, cz); scene.add(glass);
+    }
+    /* door gaps: left open; frame placed separately */
+  }
+}
+const doorFrames = [];
+async function placeDoorframes(){
+  try {
+    const g = await loadGLB('./f_doorwayOpen.glb');
+    for (const d of doorFrames){
+      const o = g.scene.clone(true);
+      o.traverse(m=>{ if (m.isMesh) m.castShadow = true; });
+      o.position.set(d.x, d.y||0, d.z);
+      o.rotation.y = (d.rot||0)*Math.PI/180;
+      o.scale.setScalar(2.0);
+      scene.add(o);
+    }
+  } catch(e){}
+}
+/* perimeter: north + west full walls with windows; south/east low */
+wallRun(-11.8, -8.0, 11.8, -8.0, WALL_H, [ {c:3.8,w:1.6,win:1}, {c:11.8,w:1.6,win:1}, {c:19.8,w:1.6,win:1} ]);
+wallRun(-11.8, -8.0, -11.8, 8.0, WALL_H, [ {c:3.8,w:1.6,win:1}, {c:12.4,w:1.6,win:1} ]);
+wallRun(-11.8, 8.0, 11.8, 8.0, LOW_H, [ {c:11.8,w:1.15} ]);           /* front door gap */
+wallRun(11.8, -8.0, 11.8, 8.0, LOW_H, []);
+/* mid wall between rows with 3 doors */
+wallRun(-11.8, 0, 11.8, 0, LOW_H, [ {c:3.8,w:1.15}, {c:11.8,w:1.15}, {c:19.8,w:1.15} ]);
+/* column walls with doors */
+wallRun(-4, -8.0, -4, 0, LOW_H, [ {c:3.8,w:1.15} ]);
+wallRun(-4, 0, -4, 8.0, LOW_H, [ {c:4.2,w:1.15} ]);
+wallRun(4, -8.0, 4, 0, LOW_H, [ {c:3.8,w:1.15} ]);
+wallRun(4, 0, 4, 8.0, LOW_H, [ {c:4.2,w:1.15} ]);
+doorFrames.push(
+  { x:-8, z:0, rot:0 }, { x:0, z:0, rot:0 }, { x:8, z:0, rot:0 },
+  { x:-4, z:-4.2, rot:90 }, { x:4, z:-4.2, rot:90 },
+  { x:-4, z:4.2, rot:90 }, { x:4, z:4.2, rot:90 },
+  { x:0, z:8.0, rot:0 },
+  { x:11.6, z:-6.9, rot:90, y:FLOOR2_Y }
+);
+/* pillars under bedroom slab */
+for (const px of [-8, 0, 8]){
+  const pil = new THREE.Mesh(new THREE.BoxGeometry(0.34, FLOOR2_Y, 0.34), trimMatG);
+  pil.position.set(px, FLOOR2_Y/2, -3.75); pil.castShadow = true; scene.add(pil);
+}
+/* bedroom slab + low walls */
+const slab = new THREE.Mesh(new THREE.BoxGeometry(24.4, 0.26, 4.9),
+  new THREE.MeshStandardMaterial({ color:0xc9a06a, roughness:0.95 }));
+slab.position.set(0, FLOOR2_Y - 0.13, -6.05); slab.receiveShadow = true; slab.castShadow = true; scene.add(slab);
+slab.userData.roomKey = 'bedroom'; clickFloors.push(slab);
+wallRun(-12.2, -8.4, 12.2, -8.4, LOW_H, [], FLOOR2_Y);
+wallRun(-12.2, -3.7, 12.2, -3.7, LOW_H, [], FLOOR2_Y);
+wallRun(-12.2, -8.4, -12.2, -3.7, LOW_H, [], FLOOR2_Y);
+wallRun(12.2, -8.4, 12.2, -3.7, LOW_H, [ {c:1.2,w:1.15} ], FLOOR2_Y);
+const bedLbl = document.createElement('div'); bedLbl.className='roomlabel'; bedLbl.textContent='BEDROOM';
+const bedLblObj = new CSS2DObject(bedLbl); bedLblObj.position.set(0, FLOOR2_Y+1.9, -7.6); scene.add(bedLblObj);
+/* external staircase (east side) */
+const stepMat = new THREE.MeshStandardMaterial({ color:0xb08a5a, roughness:0.9 });
+const NSTEP = 12, RISE = FLOOR2_Y/NSTEP, RUN = 4.9/NSTEP;
+for (let i=0;i<NSTEP;i++){
+  const st = new THREE.Mesh(new THREE.BoxGeometry(1.3, RISE, RUN+0.04), stepMat);
+  st.position.set(13.35, RISE*(i+0.5), -1.9 - RUN*(i+0.5));
+  st.castShadow = true; st.receiveShadow = true; scene.add(st);
+}
+const landing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.26, 1.6), stepMat);
+landing.position.set(13.35, FLOOR2_Y-0.13, -7.4); landing.castShadow = true; scene.add(landing);
+/* beds for everyone */
+const BEDS = [
+  { owner:'job-scout',          x:-9.2, file:'k_Bed'  },
+  { owner:'chief-of-staff',     x:-4.6, file:'k_BedB' },
+  { owner:'anar',               x: 0,   file:'k_Bed'  },
+  { owner:'application-writer', x: 4.6, file:'k_BedB' },
+  { owner:'ypg-producer',       x: 9.2, file:'k_Bed'  }
+];
+async function placeBedroom(){
+  for (const b of BEDS){
+    try {
+      const g = await loadGLB('./'+b.file+'.glb');
+      const o = g.scene.clone(true);
+      o.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+      o.position.set(b.x, FLOOR2_Y, -7.0);
+      o.rotation.y = Math.PI;
+      o.scale.setScalar(0.8);
+      scene.add(o);
+      const tag = document.createElement('div'); tag.className='roomlabel'; tag.style.fontSize='8px';
+      const cast = CAST.find(c=>c.key===b.owner); tag.textContent = cast ? cast.name : b.owner;
+      const tagObj = new CSS2DObject(tag); tagObj.position.set(b.x, FLOOR2_Y+1.15, -7.7); scene.add(tagObj);
+    } catch(e){}
+  }
+  for (const nx of [-6.9, 6.9]){
+    try {
+      const g = await loadGLB('./f_cabinetBedDrawerTable.glb');
+      const o = g.scene.clone(true); o.traverse(m=>{ if (m.isMesh) m.castShadow = true; });
+      o.position.set(nx, FLOOR2_Y, -7.5); o.scale.setScalar(1.6); o.rotation.y = Math.PI;
+      scene.add(o);
+    } catch(e){}
+  }
+  for (const lx of [-11.2, 11.2]){
+    try {
+      const g = await loadGLB('./k_LampStand.glb');
+      const o = g.scene.clone(true); o.traverse(m=>{ if (m.isMesh) m.castShadow = true; });
+      o.position.set(lx, FLOOR2_Y, -7.2); o.scale.setScalar(0.85);
+      scene.add(o);
+      const pl = new THREE.PointLight(0xffd9a0, 0.3, 6, 2);
+      pl.position.set(lx, FLOOR2_Y+1.6, -7.2); scene.add(pl); lampLights.push(pl);
+    } catch(e){}
+  }
+  try {
+    const g = await loadGLB('./k_RugStripes.glb');
+    const o = g.scene.clone(true);
+    o.position.set(0, FLOOR2_Y+0.01, -5.2); o.scale.setScalar(1.4);
+    scene.add(o);
+  } catch(e){}
+}
+
 
 /* ================= load assets ================= */
 const loader = new GLTFLoader();
@@ -500,35 +633,58 @@ function playAction(ch, name, once){
 }
 
 /* wander behavior */
-/* --- room/lane router: rooms open to the south; gaps at x=±4 and perimeter --- */
-function roomAt(x, z){
-  for (const r of ROOMS) if (Math.abs(x-r.x)<=3.9 && Math.abs(z-r.z)<=3.9) return r;
-  return null;
+/* --- door-graph router --- */
+function nodeOf(pos){
+  if (pos.y > 1.5) return 'bedroom';
+  for (const r of ROOMS) if (Math.abs(pos.x-r.x)<=3.9 && Math.abs(pos.z-r.z)<=3.9) return r.key;
+  return 'outside';
 }
-function laneZof(r){ return r.z < 0 ? 0.05 : 8.5; }
-function route(from, to){
-  const rA = roomAt(from.x, from.z), rB = roomAt(to.x, to.z);
-  const pts = [];
-  if (rA && rB && rA !== rB){
-    const zA = laneZof(rA), zB = laneZof(rB);
-    pts.push(new THREE.Vector3(rA.x, 0.22, zA));
-    if (zA !== zB){
-      const gaps = [-4, 4, 12.6, -12.6];
-      let xg = gaps[0], best = 1e9;
-      for (const g of gaps){ const d = Math.abs(g-rA.x)+Math.abs(g-rB.x); if (d < best){ best = d; xg = g; } }
-      pts.push(new THREE.Vector3(xg, 0.22, zA));
-      pts.push(new THREE.Vector3(xg, 0.22, zB));
+const V3 = (x,z,y=0.22)=> new THREE.Vector3(x, y, z);
+const EDGES = {
+  'health|study':   [V3(-4,-4.2)],
+  'study|social':   [V3(4,-4.2)],
+  'finances|career':[V3(-4,4.2)],
+  'career|civic':   [V3(4,4.2)],
+  'health|finances':[V3(-8,0)],
+  'study|career':   [V3(0,0)],
+  'social|civic':   [V3(8,0)],
+  'career|outside': [V3(0,8.1), V3(0,9.2)],
+  'outside|bedroom':[V3(13.35,8.8,0.22), V3(13.35,-1.2,0.22), V3(13.35,-7.3, 3.05+0.22), V3(11.6,-6.9, 3.05+0.22)]
+};
+const ADJ = {};
+for (const k of Object.keys(EDGES)){
+  const [a,b] = k.split('|');
+  (ADJ[a] = ADJ[a]||[]).push([b,k,false]);
+  (ADJ[b] = ADJ[b]||[]).push([a,k,true]);
+}
+function nodePath(a, b){
+  if (a===b) return [a];
+  const q=[[a]], seen=new Set([a]);
+  while (q.length){
+    const p = q.shift(), last = p[p.length-1];
+    for (const [nb] of (ADJ[last]||[])){
+      if (seen.has(nb)) continue;
+      const np = [...p, nb];
+      if (nb===b) return np;
+      seen.add(nb); q.push(np);
     }
-    pts.push(new THREE.Vector3(rB.x, 0.22, zB));
-  } else if (rA && !rB){
-    pts.push(new THREE.Vector3(rA.x, 0.22, laneZof(rA)));
-  } else if (!rA && rB){
-    pts.push(new THREE.Vector3(rB.x, 0.22, laneZof(rB)));
+  }
+  return [a,b];
+}
+function route(from, to){
+  const a = nodeOf(from), b = nodeOf(to);
+  const pts = [];
+  if (a !== b){
+    const np = nodePath(a,b);
+    for (let i=0;i<np.length-1;i++){
+      const k1 = np[i]+'|'+np[i+1], k2 = np[i+1]+'|'+np[i];
+      if (EDGES[k1]) pts.push(...EDGES[k1].map(v=>v.clone()));
+      else if (EDGES[k2]) pts.push(...EDGES[k2].slice().reverse().map(v=>v.clone()));
+    }
   }
   pts.push(to.clone ? to.clone() : new THREE.Vector3(to.x, 0.22, to.z));
-  /* drop useless waypoints */
   const out = [];
-  for (const p of pts){ if (!out.length || out[out.length-1].distanceTo(p) > 0.4) out.push(p); }
+  for (const p of pts){ if (!out.length || out[out.length-1].distanceTo(p) > 0.3) out.push(p); }
   return out;
 }
 function setDestination(ch, vec, seat){
@@ -561,6 +717,8 @@ const greetCooldown = {};
 function tryGreetings(){
   for (let i=0;i<chars.length;i++) for (let j=i+1;j<chars.length;j++){
     const a = chars[i], b = chars[j];
+    if (isNight()) return;
+    if (a.goingToBed || b.goingToBed) continue;
     if (!['idle','walk'].includes(a.state) || !['idle','walk'].includes(b.state)) continue;
     const key = a.cfg.key+'|'+b.cfg.key;
     if ((greetCooldown[key]||0) > perfNow()) continue;
@@ -624,6 +782,15 @@ function celebrate(key){
   confetti(ch.root.position); blip();
 }
 
+function isNight(){ const h = hourFrac(); return h >= 22.8 || h < 6.2; }
+function bedOf(key){ return BEDS.find(b=>b.owner===key); }
+function playLay(ch, reverse){
+  const a = ch.actions['LayToIdle']; if (!a) return false;
+  a.reset(); a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true;
+  if (reverse){ a.time = a.getClip().duration; a.timeScale = -1; } else { a.timeScale = 1; }
+  if (ch.cur) a.crossFadeFrom(ch.cur, 0.25, true);
+  a.play(); ch.cur = a; return true;
+}
 let plumbT = 0;
 function updateChar(ch, dt){
   ch.mixer.update(dt);
@@ -631,6 +798,26 @@ function updateChar(ch, dt){
     ch.plumb.position.y = 2.5 + Math.sin(plumbT*2)*0.09;
     ch.plumb.material.color.set(moodColor(avgNeeds())); }
   ch.t -= dt;
+  /* bedtime */
+  if (isNight() && !['sleep','layDown','wake'].includes(ch.state)
+      && (!ch.goingToBed || (ch.state==='idle' && (!ch.path || !ch.path.length)))){
+    const bed = bedOf(ch.cfg.key);
+    if (bed){ releaseSeat(ch); ch.goingToBed = true;
+      setDestination(ch, new THREE.Vector3(bed.x, FLOOR2_Y+0.22, -6.0), null); }
+  }
+  if (!isNight() && ch.state==='sleep'){
+    ch.state='wake'; ch.t=1.3; playLay(ch, false);
+  }
+  if (ch.state==='layDown' && ch.t<=0){ ch.state='sleep'; ch.t=8; }
+  else if (ch.state==='sleep'){
+    if (ch.t<=0){ ch.t=8; ch.bub.textContent='Zzz…'; ch.bub.style.opacity=1; setTimeout(()=>{ if(ch.state==='sleep') ch.bub.style.opacity=0; }, 3200); }
+    return;
+  }
+  else if (ch.state==='wake' && ch.t<=0){
+    const bed = bedOf(ch.cfg.key);
+    if (bed) ch.root.position.set(bed.x, FLOOR2_Y+0.22, -6.1);
+    ch.goingToBed = false; ch.state='idle'; ch.t=1+Math.random()*2; playAction(ch,'Idle_Loop');
+  }
   if (ch.state==='idle' && ch.t<=0){
     const roll = Math.random(), c = ch.cfg;
     if (roll < 0.55){ pickTarget(ch); }
@@ -650,9 +837,17 @@ function updateChar(ch, dt){
     const dir = new THREE.Vector3().subVectors(target, pos); dir.y = 0;
     const dist = dir.length();
     if (dist < 0.18){
+      pos.y = target.y;
       ch.path.shift();
       if (!ch.path.length){
-        if (ch.seat){
+        if (ch.goingToBed && isNight()){
+          const bed = bedOf(ch.cfg.key);
+          ch.root.position.set(bed.x, FLOOR2_Y+0.5, -7.0);
+          ch.root.rotation.y = Math.PI;
+          ch.state='layDown'; ch.t=1.3;
+          if (!playLay(ch, true)) { ch.state='sleep'; ch.t=8; }
+        }
+        else if (ch.seat){
           ch.root.position.set(ch.seat.x, 0.22, ch.seat.z);
           ch.root.rotation.y = ch.seat.rot;
           ch.state='sitEnter'; ch.t=1.0; playAction(ch,'Sitting_Enter',true);
@@ -678,7 +873,7 @@ function updateChar(ch, dt){
   else if (ch.state==='act' && ch.t<=0){ ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop'); }
   /* bubble: live activity + personality quips */
   ch.bubT -= dt;
-  if (ch.state==='greet') return;
+  if (ch.state==='greet' || ch.state==='layDown' || ch.state==='wake' || ch.goingToBed) return;
   const show = ch.bubT <= 0 && ch.bubT > -6;
   if (ch.bubT <= -18) { ch.bubT = 9+Math.random()*13; ch.nextQuip = null; }
   const st2 = DATA['agent-status'][ch.cfg.key];
@@ -776,6 +971,12 @@ function agentRow(k){
     esc(st.activity||'')+persona+'<br><span style="color:#8a86a8;font-size:11px">'+esc(m.mission||'')+' · '+esc(m.sched||'')+'</span></div>';
 }
 function openRoomPanel(key){
+  if (key === 'bedroom'){
+    openPanel('<h2>BEDROOM</h2><div class="sub">SECOND FLOOR · 5 BEDS</div>' +
+      '<div class="row">'+esc(ROOM_HOW.bedroom)+'</div>' +
+      '<div class="row"><span class="lab">RESIDENTS</span>SCOUT · ODKO · ANAR · INK · TUYA</div>');
+    return;
+  }
   const r = ROOMS.find(x=>x.key===key); if (!r) return;
   const needs = DATA['life-status'].needs||{};
   const v = typeof needs[r.need]==='number'? needs[r.need] : 60;
@@ -900,10 +1101,12 @@ function animate(){
     if (!renderer.getContext()) throw new Error('no webgl');
     await placeFurniture();
     await placeGarden();
+    await placeDoorframes();
+    await placeBedroom();
     await buildCast();
     $('loader').style.opacity = 0;
     setTimeout(()=> $('loader').remove(), 900);
-    animate();
+    window._chars = chars; window._nodeOf = nodeOf; animate();
   } catch(e){
     console.error(e);
     $('loadmsg').textContent = '3D unavailable — opening pixel mode…';
