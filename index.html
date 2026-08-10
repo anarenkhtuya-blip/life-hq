@@ -257,7 +257,11 @@ const FURNITURE = {
             ['f_speaker',1.4,2.6,180], ['f_rugRound',0,0.4,0], ['f_pottedPlant',2.7,-2.7,0],
             ['f_plantSmall1',-2.7,2.3,0], ['f_lampRoundFloor',2.6,1.6,0], ['f_sideTable',2.0,-2.6,0],
             ['f_radio',2.0,-2.6,0,1,0.7], ['k_Armchair',1.6,-0.1,-55,0.42], ['k_RugOval',0,0.9,0,0.5],
-            ['k_FrameS',1.8,-3.55,0,0.3,0.35], ['k_LampStand',-2.6,-2.5,0,0.4] ],
+            ['k_FrameS',1.8,-3.55,0,0.3,0.35], ['k_LampStand',-2.6,-2.5,0,0.4],
+            ['k_D20',-1.05,-0.78,0,0.055,0.47], ['k_DiceRed',-0.78,-0.58,30,0.055,0.465],
+            ['k_Domino',-0.62,-0.88,25,0.035,0.42], ['k_Domino',-0.5,-0.72,105,0.035,0.42],
+            ['k_Meeple',-1.02,-0.5,-20,0.05,0.42], ['k_Pawn',-1.2,-0.66,0,0.055,0.42],
+            ['k_CoinGold',-0.88,-0.9,0,0.035,0.42], ['k_CoinGold',-0.92,-0.85,15,0.035,0.434] ],
   finances:[ ['f_desk',-0.6,-1.9,0], ['f_chairDesk',-0.6,-1.0,180], ['f_computerScreen',-0.85,-2.05,0,1,0.76],
             ['f_computerKeyboard',-0.55,-1.75,0,1,0.76], ['f_cabinetBedDrawer',2.5,-2.5,0],
             ['f_cardboardBoxClosed',2.5,-1.4,15], ['f_lampSquareTable',0.4,-2.1,0,1,0.76], ['f_pottedPlant',2.6,1.5,0], ['f_rugRound',-0.6,0.6,0], ['f_lampRoundFloor',-2.7,1.8,0], ['k_FrameM',-1.2,-3.55,0,0.3,0.32], ['f_plantSmall1',-2.7,-2.6,0],
@@ -334,7 +338,7 @@ function applyPhase(){
   sun.color.setHex(cfg.sun); sun.intensity = cfg.si;
   hemi.color.setHex(cfg.hemi); hemi.intensity = cfg.hi;
   const lampI = ph==='night' ? 1.5 : (ph==='day' ? 0.15 : 0.8);
-  for (const pl of lampLights) pl.intensity = lampI;
+  for (const pl of lampLights) pl.intensity = lampI * (pl.userData.mult||1);
   const days=['SUN','MON','TUE','WED','THU','FRI','SAT']; const d=new Date();
   $('chip-phase').textContent = (ph==='night'?'☾ ':'☀ ')+ph.toUpperCase()+' · '+days[d.getDay()]+' '+
     ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
@@ -542,6 +546,39 @@ async function placeGarden(){
     } catch(e){}
   }
 }
+async function placeStreet(){
+  /* concrete walkway from the front door out to the street */
+  const walk = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 2.6),
+    new THREE.MeshStandardMaterial({ color:0xcfc8b8, roughness:0.95 }));
+  walk.position.set(0, -0.41, 10.05); walk.receiveShadow = true; scene.add(walk);
+  const S = [
+    /* road strip along the front lawn — 10 tiles, flush with the lawn edges */
+    ['k_Road', -19.8, 13.5, 2.2, 90], ['k_Road', -15.4, 13.5, 2.2, 90], ['k_Road', -11, 13.5, 2.2, 90],
+    ['k_Road', -6.6, 13.5, 2.2, 90],  ['k_Road', -2.2, 13.5, 2.2, 90],  ['k_Road', 2.2, 13.5, 2.2, 90],
+    ['k_Road', 6.6, 13.5, 2.2, 90],   ['k_Road', 11, 13.5, 2.2, 90],    ['k_Road', 15.4, 13.5, 2.2, 90],
+    ['k_Road', 19.8, 13.5, 2.2, 90],
+    /* cars — one parked each way */
+    ['k_CarSedan', -6.2, 12.6, 4.3, 90, 0.49], ['k_CarTaxi', 7.4, 14.4, 4.3, -90, 0.49],
+    /* street furniture on the grass shoulder */
+    ['k_Streetlight', -10.8, 11.0, 3.4, 180], ['k_Streetlight', 10.8, 11.0, 3.4, 180],
+    ['k_CityBench', -3.6, 10.6, 4.0, 180], ['k_Hydrant', 3.1, 10.9, 3.0, 0]
+  ];
+  for (const [file, gx, gz, sc, rot, dy=0] of S){
+    try {
+      const g = await loadGLB('./'+file+'.glb');
+      const p = g.scene.clone(true);
+      p.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      p.position.set(gx, -0.47 + dy, gz); p.scale.setScalar(sc); p.rotation.y = rot*Math.PI/180;
+      scene.add(p);
+    } catch(e){}
+  }
+  /* streetlights glow warm at night */
+  for (const lx of [-10.8, 10.8]){
+    const pl = new THREE.PointLight(0xffe2b0, 0.3, 9, 2);
+    pl.position.set(lx, 2.7, 11.9); pl.userData.mult = 2.2;
+    scene.add(pl); lampLights.push(pl);
+  }
+}
 async function placeFurniture(){
   for (const r of ROOMS){
     for (const item of (FURNITURE[r.key]||[])){
@@ -550,6 +587,7 @@ async function placeFurniture(){
       try { gltf = await loadGLB('./'+file+'.glb'); }
       catch(e){ try { gltf = await loadGLB('./f_rugRectangle.glb'); } catch(e2){ continue; } }
       const obj = gltf.scene.clone(true);
+      obj.name = file;
       obj.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
       obj.position.set(r.x+dx, dy, r.z+dz);
       obj.rotation.y = rot*Math.PI/180;
@@ -1101,12 +1139,13 @@ function animate(){
     if (!renderer.getContext()) throw new Error('no webgl');
     await placeFurniture();
     await placeGarden();
+    await placeStreet();
     await placeDoorframes();
     await placeBedroom();
     await buildCast();
     $('loader').style.opacity = 0;
     setTimeout(()=> $('loader').remove(), 900);
-    window._chars = chars; window._nodeOf = nodeOf; animate();
+    window._chars = chars; window._nodeOf = nodeOf; window._cam = camera; window._controls = controls; window._scene = scene; animate();
   } catch(e){
     console.error(e);
     $('loadmsg').textContent = '3D unavailable — opening pixel mode…';
