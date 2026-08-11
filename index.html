@@ -96,6 +96,7 @@
   <span class="brand"><span class="gem"></span><b>ANAR'S LIFE HQ</b></span>
   <span class="chip" id="chip-phase">☀</span>
   <span class="chip" id="chip-view" style="cursor:pointer">⌂ OPEN</span>
+  <span class="chip" id="chip-fx" style="cursor:pointer">✦ HIGH</span>
   <span class="chip" id="chip-week">WEEK</span>
   <span class="chip" id="chip-money">₮</span>
   <span class="chip" id="chip-mood">MOOD</span>
@@ -326,10 +327,10 @@ let poolWater = null;
 
 /* ---- sky dome: a real gradient in 3D so it lights and fogs the scene ---- */
 const SKY_SETS = {
-  day:   { top:0x2f6fc0, mid:0x86b6e2, hor:0xdCe9f4, fog:0xcfe0ef, fogD:0.0042, exp:1.05 },
-  dawn:  { top:0x24244e, mid:0x8a5a78, hor:0xf0a774, fog:0xd9a184, fogD:0.0072, exp:0.95 },
-  dusk:  { top:0x1d1d44, mid:0x8a4a63, hor:0xf09a5c, fog:0xcf8f6e, fogD:0.0072, exp:0.95 },
-  night: { top:0x05060f, mid:0x0d1230, hor:0x2a3868, fog:0x161e40, fogD:0.0085, exp:1.05 }
+  day:   { top:0x2f6fc0, mid:0x86b6e2, hor:0xdCe9f4, fog:0xcfe0ef, fogD:0.0026, exp:1.05 },
+  dawn:  { top:0x24244e, mid:0x8a5a78, hor:0xf0a774, fog:0xd9a184, fogD:0.0038, exp:0.98 },
+  dusk:  { top:0x1d1d44, mid:0x8a4a63, hor:0xf09a5c, fog:0xcf8f6e, fogD:0.0038, exp:0.98 },
+  night: { top:0x05060f, mid:0x0d1230, hor:0x2a3868, fog:0x161e40, fogD:0.0050, exp:1.05 }
 };
 const skyUniforms = {
   cTop: { value: new THREE.Color(SKY_SETS.day.top) },
@@ -385,18 +386,36 @@ const FX = { on: true };
 function buildComposer(){
   const w = window.innerWidth, h = window.innerHeight;
   const target = new THREE.WebGLRenderTarget(w, h, {
-    type: THREE.HalfFloatType, samples: 4, colorSpace: THREE.LinearSRGBColorSpace });
+    type: THREE.HalfFloatType, samples: 2, colorSpace: THREE.LinearSRGBColorSpace });
   composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
   gtao = new GTAOPass(scene, camera, w, h);
   gtao.output = GTAOPass.OUTPUT.Default;
   gtao.updateGtaoMaterial({ radius: 0.55, distanceExponent: 1.4, thickness: 1.4,
     scale: 1.0, samples: 16, screenSpaceRadius: false });
-  gtao.blendIntensity = 0.95;
+  gtao.blendIntensity = 0.9;
+  if (gtao.normalMaterial) gtao.normalMaterial.transparent = false;
   composer.addPass(gtao);
   bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.85, 0.92);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+}
+const QUALITY = { level:'high' };
+function applyQuality(){
+  const q = QUALITY.level;
+  renderer.setPixelRatio(q==='high' ? Math.min(window.devicePixelRatio, 1.6)
+                        : q==='med' ? Math.min(window.devicePixelRatio, 1.2) : 1);
+  renderer.shadowMap.enabled = q !== 'low';
+  sun.shadow.mapSize.set(q==='high' ? 2048 : 1024, q==='high' ? 2048 : 1024);
+  if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; }
+  FX.on = q !== 'low';
+  if (gtao){
+    gtao.enabled = q === 'high';
+    gtao.updateGtaoMaterial({ samples: q==='high' ? 8 : 4 });
+  }
+  if (bloom) bloom.enabled = q !== 'low';
+  onResize();
+  const chip = $('chip-fx'); if (chip) chip.textContent = '✦ ' + q.toUpperCase();
 }
 try { buildComposer(); } catch(e){ console.warn('post-processing unavailable', e); composer = null; }
 
@@ -428,7 +447,7 @@ if (!WALLPAPER){
 const hemi = new THREE.HemisphereLight(0xcfe0ff, 0x8a6f52, 1.0); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(18, 26, 14); sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left=-46; sun.shadow.camera.right=46; sun.shadow.camera.top=42; sun.shadow.camera.bottom=-42;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 140;
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.028;
@@ -441,7 +460,10 @@ function refreshLamps(ph){
   ph = ph || phaseOf(hourFrac());
   const lampI = ph==='night' ? 9.0 : (ph==='day' ? 0 : 4.5);
   for (const pl of lampLights) pl.intensity = lampI * (pl.userData.mult||1);
-  for (const g of glowSprites) g.material.opacity = (ph==='night' ? 0.8 : (ph==='day' ? 0 : 0.35)) * (g.userData.mult||1);
+  for (const g of glowSprites){
+    const o = (ph==='night' ? 0.8 : (ph==='day' ? 0 : 0.35)) * (g.userData.mult||1);
+    g.material.opacity = o; g.visible = o > 0.02;
+  }
   for (const w of litWindows) w.emissiveIntensity = ph==='night' ? 1.5 : (ph==='day' ? 0 : 0.6);
 }
 function applyPhase(){
@@ -591,8 +613,8 @@ const MAT = {
   shingle:  new THREE.MeshStandardMaterial({ map:TEX.shingle, roughness:0.8 }),
   trimOak:  new THREE.MeshStandardMaterial({ color:0xc08b53, roughness:0.7 }),
   trimPale: new THREE.MeshStandardMaterial({ color:0xf6efe2, roughness:0.8 }),
-  glass:    new THREE.MeshPhysicalMaterial({ color:0xd8ecf4, roughness:0.06, metalness:0,
-              transparent:true, opacity:0.30, transmission:0.55, thickness:0.4, side:THREE.DoubleSide }),
+  glass:    new THREE.MeshStandardMaterial({ color:0xcfe6f2, roughness:0.08, metalness:0.0,
+              transparent:true, opacity:0.26, side:THREE.DoubleSide, depthWrite:false }),
   mullion:  new THREE.MeshStandardMaterial({ color:0x54463a, roughness:0.6 }),
   brick:    new THREE.MeshStandardMaterial({ color:0x8d6b55, roughness:0.9 }),
   stone:    new THREE.MeshStandardMaterial({ color:0xbfb4a2, roughness:0.95 }),
@@ -857,7 +879,7 @@ function railing(x0, z0, x1, z1, y){
     const f = i/n;
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.86, 0.05), MAT.trimOak);
     s.position.set(horiz ? x0 + (x1-x0)*f : cx, y+0.52, horiz ? cz : z0 + (z1-z0)*f);
-    s.castShadow = true; upperGroup.add(s);
+    upperGroup.add(s);
   }
 }
 railing(-2.6, UP.z0+0.1, -2.6, UP_LAND_Z-0.1, FLOOR2_Y);
@@ -943,12 +965,20 @@ const GLOW_TEX = cvsTex(128,128,(g,w,h)=>{
   grd.addColorStop(1,'rgba(255,200,140,0)');
   g.fillStyle = grd; g.fillRect(0,0,w,h);
 });
-function addLamp(x, y, z, mult){
-  const pl = new THREE.PointLight(0xffc98a, 0, 15, 2);
-  pl.position.set(x, y, z); pl.userData.mult = mult||1; scene.add(pl); lampLights.push(pl);
+let realLightBudget = 8;
+function addLamp(x, y, z, mult, real){
+  /* A forward renderer evaluates every point light in every fragment shader, so the
+     light count is the single biggest cost here. Only `real` lamps get a PointLight;
+     everything else is a cheap additive glow sprite. */
+  if (real && realLightBudget > 0){
+    realLightBudget--;
+    const pl = new THREE.PointLight(0xffc98a, 0, 16, 2);
+    pl.position.set(x, y, z); pl.userData.mult = mult||1; scene.add(pl); lampLights.push(pl);
+  }
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:GLOW_TEX, color:0xffcf94,
     transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
   sp.position.set(x, y, z); sp.scale.set(2.2, 2.2, 1); sp.userData.mult = mult||1;
+  sp.visible = false; sp.renderOrder = 5; sp.layers.set(0);
   scene.add(sp); glowSprites.push(sp);
 }
 
@@ -966,7 +996,7 @@ function accentWall(x0, z0, x1, z1, h, y, mat){
     const f = i/n;
     const b = new THREE.Mesh(new THREE.BoxGeometry(horiz?0.05:0.07, h-0.04, horiz?0.07:0.05), MAT.trimOak);
     b.position.set(horiz ? x0 + (x1-x0)*f : (x0+x1)/2, (y||0) + h/2, horiz ? (z0+z1)/2 : z0 + (z1-z0)*f);
-    b.castShadow = true; houseGroup.add(b);
+    houseGroup.add(b);
   }
 }
 /* living room: clad the north wall, floor to ridge */
@@ -995,11 +1025,11 @@ accentWall(-2.9, CORR_Z+0.14, 2.9, CORR_Z+0.14, 5.4, 0, 'clad');
 }
 
 /* practical ceiling lights: what actually makes the night shot read */
-for (const r of ROOMS) addLamp(r.x, r.level ? FLOOR2_Y+2.2 : 2.35, r.z, 1.5);
+for (const r of ROOMS) addLamp(r.x, r.level ? FLOOR2_Y+2.2 : 2.35, r.z, 1.5, true);
 addLamp(-7.5, 2.35, -18.4, 1.2);        /* back corridor */
 addLamp(0, 2.35, -13.6, 1.3);           /* stair hall */
-addLamp(9.5, 4.6, -10.0, 1.8);          /* living room, high in the double-height volume */
-addLamp(-13.3, FLOOR2_Y+2.2, -16.6, 1.3);
+addLamp(9.5, 4.6, -10.0, 1.8, true);    /* living room, high in the double-height volume */
+addLamp(-13.3, FLOOR2_Y+2.2, -16.6, 1.3, true);
 addLamp(-5.6, FLOOR2_Y+2.2, -16.6, 1.1);
 
 /* ================= room labels ================= */
@@ -1067,7 +1097,7 @@ async function placeBedroom(){
     try {
       const g = await loadGLB('./'+file+'.glb');
       const o = g.scene.clone(true);
-      o.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+      o.traverse(m=>{ if (m.isMesh){ m.castShadow = false; m.receiveShadow = true; } });
       o.position.set(x, FLOOR2_Y + (dy||0), z);
       o.rotation.y = (rot||0)*Math.PI/180; o.scale.setScalar(s); upperGroup.add(o);
       if (/lamp/i.test(file)) addLamp(x, FLOOR2_Y+1.2, z, 0.9);
@@ -1092,7 +1122,7 @@ async function placeKitchen(){
     try {
       const g = await loadGLB('./'+file+'.glb');
       const o = g.scene.clone(true);
-      o.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+      o.traverse(m=>{ if (m.isMesh){ m.castShadow = false; m.receiveShadow = true; } });
       o.position.set(x, dy||0, z); o.rotation.y = rot*Math.PI/180; o.scale.setScalar(2.0);
       houseGroup.add(o);
     } catch(e){}
@@ -1152,7 +1182,7 @@ function buildOutdoors(){
       transparent:true, opacity:0.9 }));
   baseW.rotation.x = -Math.PI/2; baseW.position.set(cx, -0.315, cz);
   baseW.receiveShadow = false; scene.add(baseW);
-  const plight = new THREE.PointLight(0x54c8e8, 0, 13, 2);
+  const plight = new THREE.PointLight(0x54c8e8, 0, 14, 2);
   plight.position.set(cx, -0.8, cz); plight.userData.mult = 2.0; scene.add(plight); lampLights.push(plight);
   poolWater = new THREE.Mesh(new THREE.PlaneGeometry(pw-0.1, pd-0.1, 32, 20),
     new THREE.ShaderMaterial({
@@ -1257,7 +1287,7 @@ function buildTennis(){
       const f = i/n;
       const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,FH,8),
         new THREE.MeshStandardMaterial({ color:0x6e7a76, roughness:0.6, metalness:0.3 }));
-      p.position.set(a + (c-a)*f, -0.28 + FH/2, b + (d-b)*f); p.castShadow = true; scene.add(p);
+      p.position.set(a + (c-a)*f, -0.28 + FH/2, b + (d-b)*f); scene.add(p);
     }
     const rail = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.07, 0.07, horiz?0.07:L),
       new THREE.MeshStandardMaterial({ color:0x6e7a76, roughness:0.6, metalness:0.3 }));
@@ -1356,7 +1386,7 @@ function buildHedges(){
       const f = (i+0.5)/n;
       const t = new THREE.Mesh(new THREE.SphereGeometry(0.62, 8, 6), MAT.hedge);
       t.position.set(horiz ? a+(c-a)*f : (a+c)/2, 1.16, horiz ? (b+d)/2 : b+(d-b)*f);
-      t.scale.set(1, 0.5, 1); t.castShadow = true; scene.add(t);
+      t.scale.set(1, 0.5, 1); scene.add(t);
     }
   }
 }
@@ -1389,7 +1419,8 @@ async function placeGarden(){
     try {
       const g = await loadGLB('./'+file+'.glb');
       const o = g.scene.clone(true);
-      o.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+      const big = /Tree|Pine/.test(file);
+      o.traverse(m=>{ if (m.isMesh){ m.castShadow = big; m.receiveShadow = true; } });
       o.position.set(gx, -0.3, gz); o.scale.setScalar(sc); o.rotation.y = rot*Math.PI/180;
       scene.add(o);
     } catch(e){}
@@ -1423,6 +1454,23 @@ async function placeStreet(){
     } catch(e){}
   }
   for (const lx of [-16.0, 10.0]) addLamp(lx, 2.6, 18.3, 2.4);
+}
+
+/* Every shadow caster is an extra draw call into the shadow map each frame. Small
+   trim — knobs, slats, battens, mullion bars — contributes nothing readable, so drop
+   it from the shadow pass and keep the walls, roof, stairs and trees. */
+function cullTinyShadowCasters(){
+  let culled = 0;
+  const box = new THREE.Box3(), size = new THREE.Vector3();
+  for (const grp of [houseGroup, upperGroup, roofGroup, scene]){
+    grp.traverse(o=>{
+      if (!o.isMesh || !o.castShadow) return;
+      box.setFromObject(o); box.getSize(size);
+      const m = Math.max(size.x, size.y, size.z);
+      if (m < 0.55){ o.castShadow = false; culled++; }
+    });
+  }
+  return culled;
 }
 
 /* ================= view modes: house / open / ground / upper ================= */
@@ -1473,7 +1521,7 @@ async function placeFurniture(){
       catch(e){ try { gltf = await loadGLB('./f_rugRectangle.glb'); } catch(e2){ continue; } }
       const obj = gltf.scene.clone(true);
       obj.name = file;
-      obj.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      obj.traverse(o=>{ if (o.isMesh){ o.castShadow = false; o.receiveShadow = true; } });
       /* map the authored ±3.55 local coords onto this room's actual rect */
       const wx = r.x + dx*r.sx, wz = r.z + dz*r.sz;
       obj.position.set(wx, dy, wz);
@@ -1820,7 +1868,7 @@ function endLay(ch){
   ch.root.rotation.x = 0;
   if (ch.ring) ch.ring.visible = true;
 }
-let plumbT = 0;
+let plumbT = 0, qAccum = 0, qSamples = 0;
 function updateChar(ch, dt){
   ch.mixer.update(dt);
   if (ch.plumb){ plumbT += dt; ch.plumb.rotation.y += dt*1.6;
@@ -2122,6 +2170,11 @@ document.addEventListener('keydown', e=>{
   if (e.key==='v' || e.key==='V') cycleView();
 });
 { const cv = $('chip-view'); if (cv) cv.addEventListener('click', cycleView); }
+{ const cf = $('chip-fx'); if (cf) cf.addEventListener('click', ()=>{
+    const order = ['high','med','low'];
+    QUALITY.level = order[(order.indexOf(QUALITY.level)+1) % 3];
+    qSamples = 999; applyQuality(); if (typeof blip==='function') blip();
+  }); }
 
 /* ================= main loop ================= */
 const clock = new THREE.Clock();
@@ -2148,6 +2201,15 @@ function animate(){
     }
     controls.update();
   }
+  /* watch real frame time for the first few seconds and step quality down if needed */
+  if (qSamples < 90){
+    qAccum += dt; qSamples++;
+    if (qSamples === 90){
+      const fps = 90 / qAccum;
+      if (fps < 24 && QUALITY.level !== 'low'){ QUALITY.level = 'low'; applyQuality(); }
+      else if (fps < 42 && QUALITY.level === 'high'){ QUALITY.level = 'med'; applyQuality(); }
+    }
+  }
   updateBursts(step);
   if (poolWater) poolWater.material.uniforms.uTime.value += step;
   if (composer && FX.on) composer.render(step); else renderer.render(scene, camera);
@@ -2165,8 +2227,10 @@ function animate(){
     await placeBedroom();
     await placeKitchen();
     await placeOutdoorFurniture();
+    cullTinyShadowCasters();
     applyView();
     refreshLamps();
+    applyQuality();
     await buildCast();
     $('loader').style.opacity = 0;
     setTimeout(()=> $('loader').remove(), 900);
