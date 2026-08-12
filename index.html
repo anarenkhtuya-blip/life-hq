@@ -2178,6 +2178,14 @@ function stopRally(){
   if (tennisBall) tennisBall.visible = false;
 }
 function updateRally(dt){
+  /* Self-heal: if both players are on court but no rally object exists (whatever
+     cleared it), start one. Otherwise the ball sits at the origin, invisible-ish,
+     and the swings never fire. */
+  if (!rally){
+    const onCourt = chars.filter(c=>c.state === 'tennis' && c.spot);
+    if (onCourt.length === 2) startRally(onCourt[0], onCourt[1]);
+    else return;
+  }
   if (!rally) return;
   const from = rally.p[rally.dir], to = rally.p[1-rally.dir];
   if (from.state !== 'tennis' || to.state !== 'tennis'){ stopRally(); return; }
@@ -2949,6 +2957,7 @@ function animate(){
     window._chars = chars; window._nodeOf = nodeOf; window._cam = camera; window._controls = controls;
     window._scene = scene; window._renderer = renderer;
     window._setView = m=>{ viewMode = m; applyView(); };
+    window._rallyInfo = ()=>rally ? { dir:rally.dir, t:+rally.t.toFixed(2), fromX:+rally.fromX.toFixed(1), toX:+rally.toX.toFixed(1) } : null;
     window._forceOutdoor = (ch, kind, partner)=>{
       releaseOutdoor(ch); releaseSeat(ch);
       if (kind==='tennis' && partner){
