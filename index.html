@@ -639,7 +639,7 @@ const clickFloors = [];
 const houseGroup = new THREE.Group(); scene.add(houseGroup);
 const roofGroup  = new THREE.Group(); scene.add(roofGroup);
 const upperGroup = new THREE.Group(); scene.add(upperGroup);
-const wallRecs = [];                 /* {mesh, baseY, fullH, near} for the cutaway toggle */
+
 
 /* ground + lot */
 const lawn = new THREE.Mesh(new THREE.BoxGeometry(70, 0.6, 52), stdMat(TEX.grass, 18, 13));
@@ -670,12 +670,300 @@ plinth(MAIN); plinth(WING);
 }
 
 /* ---- wall builder: runs along one axis with gaps for doors and windows ---- */
+const BLOB_TEX = cvsTex(96,96,(g,w,h)=>{
+  const grd = g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);
+  grd.addColorStop(0,'rgba(255,255,255,0.95)'); grd.addColorStop(0.45,'rgba(255,255,255,0.45)');
+  grd.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0,0,w,h);
+});
+const GLOW_TEX = cvsTex(128,128,(g,w,h)=>{
+  const grd = g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);
+  grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(0.35,'rgba(255,220,170,0.5)');
+  grd.addColorStop(1,'rgba(255,200,140,0)');
+  g.fillStyle = grd; g.fillRect(0,0,w,h);
+});
+let realLightBudget = 8;
+function addLamp(x, y, z, mult, real){
+  /* A forward renderer evaluates every point light in every fragment shader, so the
+     light count is the single biggest cost here. Only `real` lamps get a PointLight;
+     everything else is a cheap additive glow sprite. */
+  if (real && realLightBudget > 0){
+    realLightBudget--;
+    const pl = new THREE.PointLight(0xffc98a, 0, 16, 2);
+    pl.position.set(x, y, z); pl.userData.mult = mult||1; scene.add(pl); lampLights.push(pl);
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:GLOW_TEX, color:0xffcf94,
+    transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
+  sp.position.set(x, y, z); sp.scale.set(2.2, 2.2, 1); sp.userData.mult = mult||1;
+  sp.visible = false; sp.renderOrder = 5; sp.layers.set(0);
+  scene.add(sp); glowSprites.push(sp);
+}
+
+/* ---- warm timber accent walls + a fireplace, straight from the reference ---- */
+function accentWall(x0, z0, x1, z1, h, y, mat){
+  const horiz = Math.abs(x1-x0) > Math.abs(z1-z0);
+  const L = horiz ? Math.abs(x1-x0) : Math.abs(z1-z0);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.06, h, horiz?0.06:L),
+    stdMat(mat === 'clad' ? TEX.cladV : TEX.oak, horiz ? L/2.2 : h/2.2, horiz ? h/2.2 : L/2.2));
+  m.position.set((x0+x1)/2, (y||0) + h/2, (z0+z1)/2);
+  m.receiveShadow = true; houseGroup.add(m);
+  /* batten strips give the wall real relief so AO and shadows catch on it */
+  const n = Math.max(3, Math.round(L/0.42));
+  for (let i=0;i<=n;i++){
+    const f = i/n;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(horiz?0.05:0.07, h-0.04, horiz?0.07:0.05), MAT.trimOak);
+    b.position.set(horiz ? x0 + (x1-x0)*f : (x0+x1)/2, (y||0) + h/2, horiz ? (z0+z1)/2 : z0 + (z1-z0)*f);
+    houseGroup.add(b);
+  }
+}
+/* living room: clad the north wall, floor to ridge */
+accentWall(WING.x0+0.2, WING.z0+0.14, WING.x1-0.2, WING.z0+0.14, 5.4, 0, 'clad');
+/* stair hall: clad behind the stair */
+accentWall(-2.9, CORR_Z+0.14, 2.9, CORR_Z+0.14, 5.4, 0, 'clad');
+/* bedroom headboard wall */
+{
+  const m = new THREE.Mesh(new THREE.BoxGeometry(9.2, 1.5, 0.06), stdMat(TEX.cladV, 4.2, 0.7));
+  m.position.set(-13.3, FLOOR2_Y+0.75, UP.z0+0.14); upperGroup.add(m);
+}
+/* fireplace under the chimney, facing the living room */
+{
+  const fp = new THREE.Group(); fp.position.set(3.75, 0, -14.0); houseGroup.add(fp);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.0, 2.6), MAT.brick);
+  body.position.set(0, 1.5, 0); body.castShadow = true; body.receiveShadow = true; fp.add(body);
+  const mantel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.18, 3.0), MAT.trimOak);
+  mantel.position.set(0, 1.32, 0); mantel.castShadow = true; fp.add(mantel);
+  const hole = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.85, 1.5),
+    new THREE.MeshStandardMaterial({ color:0x1a120c, roughness:1 }));
+  hole.position.set(0.5, 0.55, 0); fp.add(hole);
+  const embers = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 1.2),
+    new THREE.MeshStandardMaterial({ color:0xff7a2e, emissive:0xff5a12, emissiveIntensity:1.4, roughness:1 }));
+  embers.position.set(0.62, 0.2, 0); fp.add(embers);
+  addLamp(1.1, 0.6, -14.0, 1.6);
+}
+
+/* practical ceiling lights: what actually makes the night shot read */
+for (const r of ROOMS) addLamp(r.x, r.level ? FLOOR2_Y+2.2 : 2.35, r.z, 1.5, true);
+addLamp(-7.5, 2.35, -18.4, 1.2);        /* back corridor */
+addLamp(0, 2.35, -13.6, 1.3);           /* stair hall */
+addLamp(9.5, 4.6, -10.0, 1.8, true);    /* living room, high in the double-height volume */
+addLamp(-13.3, FLOOR2_Y+2.2, -16.6, 1.3, true);
+addLamp(-5.6, FLOOR2_Y+2.2, -16.6, 1.1);
+
+/* ================= room labels ================= */
+const roomObjs = {};
+for (const r of ROOMS){
+  const g = new THREE.Group(); g.position.set(r.x, 0, r.z); scene.add(g);
+  const lbl = document.createElement('div'); lbl.className='roomlabel'; lbl.textContent = r.title;
+  const lo = new CSS2DObject(lbl); lo.position.set(0, r.level ? FLOOR2_Y+1.7 : 1.75, -(r.hz||3)-0.2); g.add(lo);
+  roomObjs[r.key] = g;
+}
+function upLabel(txt, x, z){
+  const l = document.createElement('div'); l.className='roomlabel'; l.textContent = txt;
+  const o = new CSS2DObject(l); o.position.set(x, FLOOR2_Y+1.7, z); upperGroup.add(o);
+}
+upLabel('BEDROOM', -13.3, UP_LAND_Z-0.3);
+upLabel('BATH', -5.6, UP_LAND_Z-0.3);
+
+/* ================= beds ================= */
+const BEDS = [
+  { owner:'job-scout',          x:-16.0, z:-18.5, file:'k_Bed'  },
+  { owner:'chief-of-staff',     x:-13.3, z:-18.5, file:'k_BedB' },
+  { owner:'anar',               x:-10.6, z:-18.5, file:'k_Bed'  },
+  { owner:'application-writer', x:-15.6, z:-15.1, file:'k_BedB', flip:1 },
+  { owner:'ypg-producer',       x:-11.4, z:-15.1, file:'k_Bed',  flip:1 }
+];
+async function placeBedroom(){
+  for (const b of BEDS){
+    try {
+      const g = await loadGLB('./'+b.file+'.glb');
+      const o = g.scene.clone(true);
+      o.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
+      o.position.set(b.x, FLOOR2_Y, b.z);
+      o.rotation.y = b.flip ? 0 : Math.PI;
+      o.scale.setScalar(0.8); upperGroup.add(o);
+      const tag = document.createElement('div'); tag.className='roomlabel'; tag.style.fontSize='8px';
+      const cast = CAST.find(c=>c.key===b.owner); tag.textContent = cast ? cast.name : b.owner;
+      const to = new CSS2DObject(tag);
+      to.position.set(b.x, FLOOR2_Y+1.0, b.z + (b.flip ? 1.0 : -1.0)); upperGroup.add(to);
+    } catch(e){}
+  }
+  const UPPROPS = [
+    ['f_cabinetBedDrawer', -14.65, -19.1, 1.5, 180, 0],
+    ['f_cabinetBedDrawer', -11.95, -19.1, 1.5, 180, 0],
+    ['f_lampSquareTable',  -14.65, -19.1, 1.5, 180, 0.52],
+    ['f_lampSquareTable',  -11.95, -19.1, 1.5, 180, 0.52],
+    ['k_RugStripes',       -13.3, -16.2, 1.3, 0, 0.03],
+    ['k_FrameL',           -13.3, -19.85, 0.28, 0, 0.66],
+    ['f_pottedPlant',      -17.2, -14.4, 1.7, 0, 0],
+    ['f_coatRackStanding', -9.4, -14.5, 1.7, 20, 0],
+    ['f_lampRoundFloor',   -17.2, -19.2, 1.6, 0, 0],
+    /* bathroom */
+    ['f_bathtub',      -5.2, -19.3, 2.0, 0, 0],
+    ['f_toilet',       -3.3, -19.4, 2.0, 200, 0],
+    ['f_bathroomSink', -7.9, -14.2, 2.0, 180, 0.8],
+    ['f_bathroomSink', -6.5, -14.2, 2.0, 180, 0.8],
+    ['f_bathroomMirror', -7.9, -14.05, 2.0, 180, 1.35],
+    ['f_bathroomMirror', -6.5, -14.05, 2.0, 180, 1.35],
+    ['f_bathroomCabinet', -4.2, -14.2, 2.0, 180, 0.85],
+    ['f_shower',       -3.4, -16.6, 1.9, 180, 0],
+    ['f_rugRound',     -5.8, -16.4, 1.4, 0, 0.03],
+    ['f_trashcan',     -4.4, -18.0, 1.6, 0, 0],
+    ['f_plantSmall2',  -8.1, -19.3, 1.7, 0, 0]
+  ];
+  for (const [file,x,z,s,rot,dy] of UPPROPS){
+    try {
+      const g = await loadGLB('./'+file+'.glb');
+      const o = g.scene.clone(true);
+      o.traverse(m=>{ if (m.isMesh){ m.castShadow = false; m.receiveShadow = true; } });
+      o.position.set(x, FLOOR2_Y + (dy||0), z);
+      o.rotation.y = (rot||0)*Math.PI/180; o.scale.setScalar(s); upperGroup.add(o);
+      if (/lamp/i.test(file)) addLamp(x, FLOOR2_Y+1.2, z, 0.9);
+    } catch(e){}
+  }
+}
+/* ---- wall dressing: framed art, shelves and sconces ----
+   Bare wall area is the loudest "unfinished" signal in a dollhouse view, so every
+   wall run over 1.6 long gets a small composition hung on it. */
+let dressSeed = 1;
+function rnd(){ dressSeed = (dressSeed*1103515245 + 12345) & 0x7fffffff; return dressSeed / 0x7fffffff; }
+const ART_TEX = [];
+for (let k=0;k<6;k++){
+  ART_TEX.push(cvsTex(96, 128, (g,w,h)=>{
+    const bg = ['#efe6d6','#e8dcc6','#f3ece0'][k%3];
+    g.fillStyle = bg; g.fillRect(0,0,w,h);
+    const pal = [['#b98a5a','#8a6a45','#d8c3a0'], ['#7d8f6e','#b6c0a2','#e0d8c2'],
+                 ['#c08a72','#8a5f52','#e6d2c0'], ['#8a94ad','#c3cbd8','#e8e2d8'],
+                 ['#c9a45c','#7a6440','#efe0c4'], ['#9c7f6a','#d4bfa4','#f0e6d6']][k];
+    if (k % 3 === 0){
+      for (let i=0;i<3;i++){ g.fillStyle = pal[i%3];
+        g.fillRect(10 + i*24, 20 + (i%2)*30, 20, 60 - (i%2)*20); }
+    } else if (k % 3 === 1){
+      g.fillStyle = pal[0]; g.beginPath(); g.arc(w/2, h*0.42, 26, 0, 6.3); g.fill();
+      g.fillStyle = pal[1]; g.fillRect(14, h*0.62, w-28, 10);
+      g.fillStyle = pal[2]; g.fillRect(22, h*0.72, w-44, 6);
+    } else {
+      g.strokeStyle = pal[0]; g.lineWidth = 3;
+      for (let i=0;i<5;i++){ g.beginPath(); g.moveTo(12, 24+i*18); g.lineTo(w-12, 30+i*18); g.stroke(); }
+      g.fillStyle = pal[1]; g.fillRect(w/2-12, h-34, 24, 18);
+    }
+  }));
+}
+const FRAME_MAT = new THREE.MeshStandardMaterial({ color:0x6f5335, roughness:0.7 });
+const SHELF_MAT = new THREE.MeshStandardMaterial({ color:0xb98047, roughness:0.7 });
+const SCONCE_MAT= new THREE.MeshStandardMaterial({ color:0x3a3128, roughness:0.5, metalness:0.4 });
+function hangArt(horiz, cx, cz, y, faceSign, w, hgt, texIdx){
+  const grp = new THREE.Group();
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(horiz?w+0.08:0.05, hgt+0.08, horiz?0.05:w+0.08), FRAME_MAT);
+  const art = new THREE.Mesh(new THREE.BoxGeometry(horiz?w:0.02, hgt, horiz?0.02:w),
+    new THREE.MeshStandardMaterial({ map: ART_TEX[texIdx % ART_TEX.length], roughness:0.9 }));
+  frame.position.set(0,0,0); art.position.set(horiz?0:0.02*faceSign, 0, horiz?0.02*faceSign:0);
+  grp.add(frame); grp.add(art);
+  grp.position.set(cx + (horiz?0:(T/2+0.03)*faceSign), y, cz + (horiz?(T/2+0.03)*faceSign:0));
+  return grp;
+}
+function dressWall(horiz, L, cx, cz, yBase, h, group){
+  if (L < 1.6 || h < 1.6) return;
+  const g = group || houseGroup;
+  for (const faceSign of [-1, 1]){
+    const roll = rnd();
+    if (roll < 0.22) continue;                       /* leave some walls bare */
+    if (roll < 0.55){
+      /* a cluster of two or three frames */
+      const n = 2 + (rnd() > 0.6 ? 1 : 0);
+      for (let i=0;i<n;i++){
+        const off = (i - (n-1)/2) * 0.62;
+        const w = 0.34 + rnd()*0.16, hh = 0.4 + rnd()*0.2;
+        const y = yBase + 1.42 + (i%2 ? 0.16 : -0.1);
+        if (Math.abs(off) > L/2 - 0.4) continue;
+        g.add(hangArt(horiz, horiz?cx+off:cx, horiz?cz:cz+off, y, faceSign, w, hh, (i*3+Math.floor(rnd()*6))|0));
+      }
+    } else if (roll < 0.78){
+      /* one larger picture */
+      const w = Math.min(L*0.45, 1.0), hh = w*0.78;
+      g.add(hangArt(horiz, cx, cz, yBase + 1.5, faceSign, w, hh, Math.floor(rnd()*6)));
+    } else {
+      /* floating shelf with a couple of objects */
+      const w = Math.min(L*0.5, 1.1);
+      const sh = new THREE.Mesh(new THREE.BoxGeometry(horiz?w:0.2, 0.06, horiz?0.2:w), SHELF_MAT);
+      sh.position.set(cx + (horiz?0:(T/2+0.09)*faceSign), yBase+1.38, cz + (horiz?(T/2+0.09)*faceSign:0));
+      sh.castShadow = true; g.add(sh);
+      for (let i=0;i<3;i++){
+        const bw = 0.06 + rnd()*0.05, bh = 0.14 + rnd()*0.12;
+        const bk = new THREE.Mesh(new THREE.BoxGeometry(horiz?bw:0.1, bh, horiz?0.1:bw),
+          new THREE.MeshStandardMaterial({ color:[0x8a6a45,0x7d8f6e,0xc08a72,0x8a94ad][i%4], roughness:0.85 }));
+        const off = (i-1)*0.17;
+        bk.position.set((horiz?cx+off:cx) + (horiz?0:(T/2+0.09)*faceSign), yBase+1.41+bh/2,
+                        (horiz?cz:cz+off) + (horiz?(T/2+0.09)*faceSign:0));
+        bk.castShadow = true; g.add(bk);
+      }
+    }
+    /* a sconce on roughly a third of the faces */
+    if (rnd() < 0.34){
+      const sx = cx + (horiz?0:(T/2+0.07)*faceSign), sz = cz + (horiz?(T/2+0.07)*faceSign:0);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.05), SCONCE_MAT);
+      arm.position.set(sx, yBase+2.05, sz); g.add(arm);
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.18, 10),
+        new THREE.MeshStandardMaterial({ color:0xf2e3c6, roughness:0.9, emissive:0xffcf8a, emissiveIntensity:0 }));
+      shade.position.set(sx, yBase+2.0, sz); shade.rotation.x = Math.PI; g.add(shade);
+      litWindows.push(shade.material);
+      addLamp(sx, yBase+1.95, sz, 0.7);
+    }
+  }
+}
+
+const nearGroups = [];
+const MAT_CAP = new THREE.MeshStandardMaterial({ color:0x4a3a2c, roughness:0.85 });
+const MAT_CURTAIN = new THREE.MeshStandardMaterial({ color:0xe6d9c2, roughness:0.95 });
+const MAT_CURTAIN2= new THREE.MeshStandardMaterial({ color:0xcbbba0, roughness:0.95 });
+
+/* a dark board capping every cut wall — this single detail is what makes a
+   dollhouse section read as "designed" instead of "unfinished" */
+function capWall(horiz, L, cx, cz, topY, group){
+  const c = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:T+0.1, 0.09, horiz?T+0.1:L), MAT_CAP);
+  c.position.set(cx, topY + 0.045, cz);
+  c.castShadow = true; c.receiveShadow = true;
+  (group||houseGroup).add(c);
+  return c;
+}
+function curtains(horiz, L, cx, cz, yBase, sillH, headH, group){
+  const g = group || houseGroup;
+  const top = yBase + headH + 0.16, drop = top - (yBase + 0.06);
+  const rod = new THREE.Mesh(new THREE.BoxGeometry(horiz?L+0.5:0.05, 0.05, horiz?0.05:L+0.5), MAT.trimOak);
+  rod.position.set(cx, top + 0.07, cz + (horiz ? 0.16 : 0)); if(!horiz) rod.position.set(cx + 0.16, top + 0.07, cz);
+  g.add(rod);
+  for (const side of [-1, 1]){
+    const w = L*0.3;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(horiz?w:0.1, drop, horiz?0.1:w),
+      side<0 ? MAT_CURTAIN : MAT_CURTAIN2);
+    if (horiz) panel.position.set(cx + side*(L/2 - w/2), top - drop/2, cz + 0.16);
+    else       panel.position.set(cx + 0.16, top - drop/2, cz + side*(L/2 - w/2));
+    panel.castShadow = true; panel.receiveShadow = true; g.add(panel);
+  }
+}
 function wall(x1, z1, x2, z2, h, gaps, yBase, opts){
   opts = opts || {}; yBase = yBase || 0;
   const horiz = Math.abs(x2-x1) > Math.abs(z2-z1);
   const len = horiz ? (x2-x1) : (z2-z1);
   const dir = Math.sign(len) || 1;
   const mat = opts.mat || MAT.render;
+  let target = opts.group || houseGroup;
+  /* Near walls would hide the interior in cutaway view. Instead of squashing them
+     (which left windows and curtains floating in mid-air), build the real wall and a
+     separate low stub, and swap whole groups. */
+  if (opts.near){
+    const full = new THREE.Group(), stub = new THREE.Group();
+    target.add(full); target.add(stub);
+    nearGroups.push({ full, stub });
+    const sh = Math.min(LOW, h), sL = Math.abs(len);
+    const scx = horiz ? (x1+x2)/2 : x1, scz = horiz ? z1 : (z1+z2)/2;
+    const sw = new THREE.Mesh(new THREE.BoxGeometry(horiz?sL:T, sh, horiz?T:sL), mat);
+    sw.position.set(scx, yBase + sh/2, scz);
+    sw.castShadow = true; sw.receiveShadow = true; stub.add(sw);
+    capWall(horiz, sL, scx, scz, yBase + sh, stub);
+    const sk = new THREE.Mesh(new THREE.BoxGeometry(horiz?sL:T+0.06, 0.14, horiz?T+0.06:sL), MAT.trimPale);
+    sk.position.set(scx, yBase + 0.07, scz); stub.add(sk);
+    target = full;
+  }
   const segs = []; let cur = 0;
   for (const g of (gaps||[]).slice().sort((a,b)=>a.c-b.c)){
     segs.push([cur, g.c - g.w/2, null]); segs.push([g.c - g.w/2, g.c + g.w/2, g]); cur = g.c + g.w/2;
@@ -690,43 +978,52 @@ function wall(x1, z1, x2, z2, h, gaps, yBase, opts){
       const w = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:T, hh, horiz?T:L), m||mat);
       w.position.set(cx, yy + hh/2, cz);
       w.castShadow = true; w.receiveShadow = true;
-      (opts.group || houseGroup).add(w);
-      if (!opts.noCut) wallRecs.push({ mesh:w, baseY:yy, fullH:hh, near:!!opts.near });
+      target.add(w);
       return w;
     };
     if (!g){
       add(h, yBase);
+      capWall(horiz, L, cx, cz, yBase + h, target);
       if (opts.skirt !== false){
         const sk = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:T+0.06, 0.14, horiz?T+0.06:L), MAT.trimPale);
-        sk.position.set(cx, yBase + 0.07, cz); (opts.group||houseGroup).add(sk);
+        sk.position.set(cx, yBase + 0.07, cz); target.add(sk);
       }
+      if (opts.dress !== false) dressWall(horiz, L, cx, cz, yBase, h, target);
     } else if (g.win){
       const sillH = g.sill != null ? g.sill : 0.85, headH = g.head != null ? g.head : 2.25;
       add(sillH, yBase);
-      if (h > headH) add(h - headH, yBase + headH);
-      const gl = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.06, headH-sillH, horiz?0.06:L), MAT.glass);
-      gl.position.set(cx, yBase + (sillH+headH)/2, cz); (opts.group||houseGroup).add(gl);
-      litWindows.push(gl.material === MAT.glass ? (gl.material = MAT.glass.clone(), gl.material) : gl.material);
+      if (h > headH){ add(h - headH, yBase + headH); capWall(horiz, L, cx, cz, yBase + h, target); }
+      const gl = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.06, headH-sillH, horiz?0.06:L), MAT.glass.clone());
+      gl.position.set(cx, yBase + (sillH+headH)/2, cz); target.add(gl);
       gl.material.emissive = new THREE.Color(0xffcf8a); gl.material.emissiveIntensity = 0;
-      /* frame + mullions so the sun throws real window bars across the floor */
-      const fr = (w2,h2,x3,y3,z3)=>{ const m = new THREE.Mesh(new THREE.BoxGeometry(w2,h2,z3?z3:0.1), MAT.mullion);
-        m.position.set(x3,y3,cz); m.castShadow = true; (opts.group||houseGroup).add(m); return m; };
+      litWindows.push(gl.material);
+      /* sill board inside and out */
+      for (const off of [0.13, -0.13]){
+        const sb = new THREE.Mesh(new THREE.BoxGeometry(horiz?L+0.16:0.2, 0.07, horiz?0.2:L+0.16), MAT.trimPale);
+        sb.position.set(cx + (horiz?0:off), yBase + sillH + 0.035, cz + (horiz?off:0));
+        sb.castShadow = true; target.add(sb);
+      }
+      const fr = (w2,h2,x3,y3)=>{ const m = new THREE.Mesh(new THREE.BoxGeometry(w2,h2,0.1), MAT.mullion);
+        m.position.set(x3,y3,cz); m.castShadow = true; target.add(m); return m; };
       if (horiz){
         fr(L, 0.1, cx, yBase+sillH); fr(L, 0.1, cx, yBase+headH);
         const n = Math.max(1, Math.round(L/1.5));
         for (let i=0;i<=n;i++){ const m = new THREE.Mesh(new THREE.BoxGeometry(0.09, headH-sillH, 0.12), MAT.mullion);
-          m.position.set(cx - L/2 + L*i/n, yBase+(sillH+headH)/2, cz); m.castShadow = true; (opts.group||houseGroup).add(m); }
+          m.position.set(cx - L/2 + L*i/n, yBase+(sillH+headH)/2, cz); m.castShadow = true; target.add(m); }
       } else {
         const bar = (yy)=>{ const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, L), MAT.mullion);
-          m.position.set(cx, yy, cz); m.castShadow = true; (opts.group||houseGroup).add(m); };
+          m.position.set(cx, yy, cz); m.castShadow = true; target.add(m); };
         bar(yBase+sillH); bar(yBase+headH);
         const n = Math.max(1, Math.round(L/1.5));
         for (let i=0;i<=n;i++){ const m = new THREE.Mesh(new THREE.BoxGeometry(0.12, headH-sillH, 0.09), MAT.mullion);
-          m.position.set(cx, yBase+(sillH+headH)/2, cz - L/2 + L*i/n); m.castShadow = true; (opts.group||houseGroup).add(m); }
+          m.position.set(cx, yBase+(sillH+headH)/2, cz - L/2 + L*i/n); m.castShadow = true; target.add(m); }
       }
+      if (opts.curtains !== false) curtains(horiz, L, cx, cz, yBase, sillH, headH, target);
     } else if (g.head != null){
-      /* opening with a header above (internal wide opening) */
-      if (h > g.head) add(h - g.head, yBase + g.head);
+      if (h > g.head){ add(h - g.head, yBase + g.head); capWall(horiz, L, cx, cz, yBase + h, target); }
+      /* header beam across the opening */
+      const hd = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:T+0.08, 0.16, horiz?T+0.08:L), MAT.trimOak);
+      hd.position.set(cx, yBase + g.head - 0.08, cz); hd.castShadow = true; target.add(hd);
     }
   }
 }
@@ -953,157 +1250,6 @@ gableRoof(WING.x0, WING.z0, WING.x1, WING.z1, MAIN_TOP, 3.0, false);
 }
 
 
-const BLOB_TEX = cvsTex(96,96,(g,w,h)=>{
-  const grd = g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);
-  grd.addColorStop(0,'rgba(255,255,255,0.95)'); grd.addColorStop(0.45,'rgba(255,255,255,0.45)');
-  grd.addColorStop(1,'rgba(255,255,255,0)');
-  g.fillStyle = grd; g.fillRect(0,0,w,h);
-});
-const GLOW_TEX = cvsTex(128,128,(g,w,h)=>{
-  const grd = g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);
-  grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(0.35,'rgba(255,220,170,0.5)');
-  grd.addColorStop(1,'rgba(255,200,140,0)');
-  g.fillStyle = grd; g.fillRect(0,0,w,h);
-});
-let realLightBudget = 8;
-function addLamp(x, y, z, mult, real){
-  /* A forward renderer evaluates every point light in every fragment shader, so the
-     light count is the single biggest cost here. Only `real` lamps get a PointLight;
-     everything else is a cheap additive glow sprite. */
-  if (real && realLightBudget > 0){
-    realLightBudget--;
-    const pl = new THREE.PointLight(0xffc98a, 0, 16, 2);
-    pl.position.set(x, y, z); pl.userData.mult = mult||1; scene.add(pl); lampLights.push(pl);
-  }
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:GLOW_TEX, color:0xffcf94,
-    transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
-  sp.position.set(x, y, z); sp.scale.set(2.2, 2.2, 1); sp.userData.mult = mult||1;
-  sp.visible = false; sp.renderOrder = 5; sp.layers.set(0);
-  scene.add(sp); glowSprites.push(sp);
-}
-
-/* ---- warm timber accent walls + a fireplace, straight from the reference ---- */
-function accentWall(x0, z0, x1, z1, h, y, mat){
-  const horiz = Math.abs(x1-x0) > Math.abs(z1-z0);
-  const L = horiz ? Math.abs(x1-x0) : Math.abs(z1-z0);
-  const m = new THREE.Mesh(new THREE.BoxGeometry(horiz?L:0.06, h, horiz?0.06:L),
-    stdMat(mat === 'clad' ? TEX.cladV : TEX.oak, horiz ? L/2.2 : h/2.2, horiz ? h/2.2 : L/2.2));
-  m.position.set((x0+x1)/2, (y||0) + h/2, (z0+z1)/2);
-  m.receiveShadow = true; houseGroup.add(m);
-  /* batten strips give the wall real relief so AO and shadows catch on it */
-  const n = Math.max(3, Math.round(L/0.42));
-  for (let i=0;i<=n;i++){
-    const f = i/n;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(horiz?0.05:0.07, h-0.04, horiz?0.07:0.05), MAT.trimOak);
-    b.position.set(horiz ? x0 + (x1-x0)*f : (x0+x1)/2, (y||0) + h/2, horiz ? (z0+z1)/2 : z0 + (z1-z0)*f);
-    houseGroup.add(b);
-  }
-}
-/* living room: clad the north wall, floor to ridge */
-accentWall(WING.x0+0.2, WING.z0+0.14, WING.x1-0.2, WING.z0+0.14, 5.4, 0, 'clad');
-/* stair hall: clad behind the stair */
-accentWall(-2.9, CORR_Z+0.14, 2.9, CORR_Z+0.14, 5.4, 0, 'clad');
-/* bedroom headboard wall */
-{
-  const m = new THREE.Mesh(new THREE.BoxGeometry(9.2, 1.5, 0.06), stdMat(TEX.cladV, 4.2, 0.7));
-  m.position.set(-13.3, FLOOR2_Y+0.75, UP.z0+0.14); upperGroup.add(m);
-}
-/* fireplace under the chimney, facing the living room */
-{
-  const fp = new THREE.Group(); fp.position.set(3.75, 0, -14.0); houseGroup.add(fp);
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.0, 2.6), MAT.brick);
-  body.position.set(0, 1.5, 0); body.castShadow = true; body.receiveShadow = true; fp.add(body);
-  const mantel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.18, 3.0), MAT.trimOak);
-  mantel.position.set(0, 1.32, 0); mantel.castShadow = true; fp.add(mantel);
-  const hole = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.85, 1.5),
-    new THREE.MeshStandardMaterial({ color:0x1a120c, roughness:1 }));
-  hole.position.set(0.5, 0.55, 0); fp.add(hole);
-  const embers = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 1.2),
-    new THREE.MeshStandardMaterial({ color:0xff7a2e, emissive:0xff5a12, emissiveIntensity:1.4, roughness:1 }));
-  embers.position.set(0.62, 0.2, 0); fp.add(embers);
-  addLamp(1.1, 0.6, -14.0, 1.6);
-}
-
-/* practical ceiling lights: what actually makes the night shot read */
-for (const r of ROOMS) addLamp(r.x, r.level ? FLOOR2_Y+2.2 : 2.35, r.z, 1.5, true);
-addLamp(-7.5, 2.35, -18.4, 1.2);        /* back corridor */
-addLamp(0, 2.35, -13.6, 1.3);           /* stair hall */
-addLamp(9.5, 4.6, -10.0, 1.8, true);    /* living room, high in the double-height volume */
-addLamp(-13.3, FLOOR2_Y+2.2, -16.6, 1.3, true);
-addLamp(-5.6, FLOOR2_Y+2.2, -16.6, 1.1);
-
-/* ================= room labels ================= */
-const roomObjs = {};
-for (const r of ROOMS){
-  const g = new THREE.Group(); g.position.set(r.x, 0, r.z); scene.add(g);
-  const lbl = document.createElement('div'); lbl.className='roomlabel'; lbl.textContent = r.title;
-  const lo = new CSS2DObject(lbl); lo.position.set(0, r.level ? FLOOR2_Y+1.7 : 1.75, -(r.hz||3)-0.2); g.add(lo);
-  roomObjs[r.key] = g;
-}
-function upLabel(txt, x, z){
-  const l = document.createElement('div'); l.className='roomlabel'; l.textContent = txt;
-  const o = new CSS2DObject(l); o.position.set(x, FLOOR2_Y+1.7, z); upperGroup.add(o);
-}
-upLabel('BEDROOM', -13.3, UP_LAND_Z-0.3);
-upLabel('BATH', -5.6, UP_LAND_Z-0.3);
-
-/* ================= beds ================= */
-const BEDS = [
-  { owner:'job-scout',          x:-16.0, z:-18.5, file:'k_Bed'  },
-  { owner:'chief-of-staff',     x:-13.3, z:-18.5, file:'k_BedB' },
-  { owner:'anar',               x:-10.6, z:-18.5, file:'k_Bed'  },
-  { owner:'application-writer', x:-15.6, z:-15.1, file:'k_BedB', flip:1 },
-  { owner:'ypg-producer',       x:-11.4, z:-15.1, file:'k_Bed',  flip:1 }
-];
-async function placeBedroom(){
-  for (const b of BEDS){
-    try {
-      const g = await loadGLB('./'+b.file+'.glb');
-      const o = g.scene.clone(true);
-      o.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.receiveShadow = true; } });
-      o.position.set(b.x, FLOOR2_Y, b.z);
-      o.rotation.y = b.flip ? 0 : Math.PI;
-      o.scale.setScalar(0.8); upperGroup.add(o);
-      const tag = document.createElement('div'); tag.className='roomlabel'; tag.style.fontSize='8px';
-      const cast = CAST.find(c=>c.key===b.owner); tag.textContent = cast ? cast.name : b.owner;
-      const to = new CSS2DObject(tag);
-      to.position.set(b.x, FLOOR2_Y+1.0, b.z + (b.flip ? 1.0 : -1.0)); upperGroup.add(to);
-    } catch(e){}
-  }
-  const UPPROPS = [
-    ['f_cabinetBedDrawer', -14.65, -19.1, 1.5, 180, 0],
-    ['f_cabinetBedDrawer', -11.95, -19.1, 1.5, 180, 0],
-    ['f_lampSquareTable',  -14.65, -19.1, 1.5, 180, 0.52],
-    ['f_lampSquareTable',  -11.95, -19.1, 1.5, 180, 0.52],
-    ['k_RugStripes',       -13.3, -16.2, 1.3, 0, 0.03],
-    ['k_FrameL',           -13.3, -19.85, 0.28, 0, 0.66],
-    ['f_pottedPlant',      -17.2, -14.4, 1.7, 0, 0],
-    ['f_coatRackStanding', -9.4, -14.5, 1.7, 20, 0],
-    ['f_lampRoundFloor',   -17.2, -19.2, 1.6, 0, 0],
-    /* bathroom */
-    ['f_bathtub',      -5.2, -19.3, 2.0, 0, 0],
-    ['f_toilet',       -3.3, -19.4, 2.0, 200, 0],
-    ['f_bathroomSink', -7.9, -14.2, 2.0, 180, 0.8],
-    ['f_bathroomSink', -6.5, -14.2, 2.0, 180, 0.8],
-    ['f_bathroomMirror', -7.9, -14.05, 2.0, 180, 1.35],
-    ['f_bathroomMirror', -6.5, -14.05, 2.0, 180, 1.35],
-    ['f_bathroomCabinet', -4.2, -14.2, 2.0, 180, 0.85],
-    ['f_shower',       -3.4, -16.6, 1.9, 180, 0],
-    ['f_rugRound',     -5.8, -16.4, 1.4, 0, 0.03],
-    ['f_trashcan',     -4.4, -18.0, 1.6, 0, 0],
-    ['f_plantSmall2',  -8.1, -19.3, 1.7, 0, 0]
-  ];
-  for (const [file,x,z,s,rot,dy] of UPPROPS){
-    try {
-      const g = await loadGLB('./'+file+'.glb');
-      const o = g.scene.clone(true);
-      o.traverse(m=>{ if (m.isMesh){ m.castShadow = false; m.receiveShadow = true; } });
-      o.position.set(x, FLOOR2_Y + (dy||0), z);
-      o.rotation.y = (rot||0)*Math.PI/180; o.scale.setScalar(s); upperGroup.add(o);
-      if (/lamp/i.test(file)) addLamp(x, FLOOR2_Y+1.2, z, 0.9);
-    } catch(e){}
-  }
-}
 /* ================= kitchen along the civic room's north wall ================= */
 async function placeKitchen(){
   const K = [
@@ -1118,6 +1264,13 @@ async function placeKitchen(){
     ['f_kitchenMicrowave',    -6.7,  -9.7, 160, 0.92],
     ['f_kitchenBar',          -6.6,  -7.4,  90, 0]
   ];
+  {
+    const top = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.09, 0.72),
+      new THREE.MeshStandardMaterial({ color:0x6f6257, roughness:0.5 }));
+    top.position.set(-8.05, 0.93, -9.62); top.castShadow = true; top.receiveShadow = true; houseGroup.add(top);
+    const splash = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.66, 0.05), stdMat(TEX.tile, 2.6, 0.32));
+    splash.position.set(-8.05, 1.3, -9.95); houseGroup.add(splash);
+  }
   for (const [file,x,z,rot,dy] of K){
     try {
       const g = await loadGLB('./'+file+'.glb');
@@ -1127,6 +1280,26 @@ async function placeKitchen(){
       houseGroup.add(o);
     } catch(e){}
   }
+}
+
+/* woven rugs anchor the furniture instead of it floating on bare boards */
+const RUG_TEX = cvsTex(256,256,(g,w,h)=>{
+  g.fillStyle='#dccdb2'; g.fillRect(0,0,w,h);
+  g.strokeStyle='rgba(150,120,88,0.35)'; g.lineWidth=2;
+  g.strokeRect(12,12,w-24,h-24); g.strokeRect(22,22,w-44,h-44);
+  g.fillStyle='rgba(160,128,92,0.28)';
+  for(let i=0;i<7;i++) for(let j=0;j<7;j++){
+    if((i+j)%2) continue;
+    g.beginPath(); g.moveTo(40+i*26, 128); g.lineTo(53+i*26, 115+j*0); g.lineTo(66+i*26,128);
+    g.lineTo(53+i*26,141); g.closePath(); g.fill();
+  }
+  for(let k=0;k<2600;k++){ g.fillStyle=`rgba(120,96,70,${Math.random()*0.05})`;
+    g.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+});
+for (const [rx, rz, rw, rd] of [[-14.6,-13.4,4.4,3.4], [-6.6,-13.4,4.8,3.6], [-14.4,-7.2,4.2,3.4],
+                                 [-6.6,-6.0,4.0,3.0], [0,-7.4,3.6,3.2], [9.6,-9.0,5.6,4.4], [10.2,-13.6,3.6,3.0]]){
+  const rug = new THREE.Mesh(new THREE.BoxGeometry(rw, 0.03, rd), stdMat(RUG_TEX, 1, 1));
+  rug.position.set(rx, 0.145, rz); rug.receiveShadow = true; houseGroup.add(rug);
 }
 
 /* ================= terrace, pool, outdoor living ================= */
@@ -1478,18 +1651,12 @@ const VIEW_MODES = ['open','house','ground','upper'];
 let viewMode = 'open';
 function applyView(){
   const m = viewMode;
-  roofGroup.visible = (m === 'house');
+  const showFull = (m === 'house');
+  roofGroup.visible = showFull;
   upperGroup.visible = (m !== 'ground');
   houseGroup.visible = true;
-  for (const r of wallRecs){
-    const cut = (m === 'open' || m === 'ground' || m === 'upper') && r.near;
-    const h = cut ? Math.min(LOW, r.fullH) : r.fullH;
-    r.mesh.scale.y = h / r.fullH;
-    r.mesh.position.y = r.baseY + h/2;
-    r.mesh.visible = !(m === 'upper' && !r.near && r.baseY < FLOOR2_Y - 0.5);
-  }
-  if (m === 'upper'){ for (const [,g] of Object.entries(roomObjs)) g.visible = false; }
-  else { for (const [,g] of Object.entries(roomObjs)) g.visible = true; }
+  for (const ng of nearGroups){ ng.full.visible = showFull; ng.stub.visible = !showFull; }
+  for (const [, g] of Object.entries(roomObjs)) g.visible = (m !== 'upper');
   const chip = $('chip-view'); if (chip) chip.textContent = '⌂ ' + m.toUpperCase();
 }
 function cycleView(){
