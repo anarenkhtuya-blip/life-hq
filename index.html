@@ -2188,7 +2188,7 @@ function updateRally(dt){
   }
   if (!rally) return;
   const from = rally.p[rally.dir], to = rally.p[1-rally.dir];
-  if (from.state !== 'tennis' || to.state !== 'tennis'){ stopRally(); return; }
+  if (from.state !== 'tennis' || to.state !== 'tennis' || !from.spot || !to.spot){ stopRally(); return; }
   rally.t += dt;
   const f = Math.min(1, rally.t / rally.dur);
   const z0 = from.spot.z, z1 = to.spot.z;
@@ -2435,7 +2435,15 @@ function updateChar(ch, dt){
     ch.plumb.material.color.set(moodColor(avgNeeds())); }
   ch.t -= dt;
   /* bedtime */
-  if (isNight() && ch.spot) releaseOutdoor(ch);
+  /* Nightfall used to strip ch.spot while leaving the character in an outdoor
+     state, so tennis/swim/sunbathe then dereferenced null every frame. Exit cleanly. */
+  if (isNight() && (ch.spot || ['swim','tennis','sunbathe'].includes(ch.state))){
+    stopRally(); releaseOutdoor(ch); endLay(ch);
+    ch.root.rotation.set(0, ch.root.rotation.y, 0);
+    ch.root.position.set(ch.root.position.x, DECK_Y, Math.max(ch.root.position.z, POOL.z0 - 1.6));
+    if (ch.ring) ch.ring.visible = true;
+    ch.state = 'idle'; ch.t = 0.4; ch.cur = null; playAction(ch, 'Idle_Loop');
+  }
   if (isNight() && !['sleep','layDown','wake','swim','tennis','sunbathe'].includes(ch.state)
       && (!ch.goingToBed || (ch.state==='idle' && (!ch.path || !ch.path.length)))){
     const bed = bedOf(ch.cfg.key);
@@ -2574,6 +2582,8 @@ function updateChar(ch, dt){
     }
   }
   else if (ch.state==='sunbathe'){
+    if (!ch.spot){ endLay(ch); ch.root.rotation.x = 0; ch.root.position.y = DECK_Y;
+      ch.state='idle'; ch.t=0.4; ch.cur=null; playAction(ch,'Idle_Loop'); return; }
     if (ch.t<=0){
       const a = ch.actions['LayToIdle']; if (a) a.paused = false;
       ch.layDur = a ? a.getClip().duration : 1.2;
@@ -2591,6 +2601,7 @@ function updateChar(ch, dt){
     return;
   }
   else if (ch.state==='swim'){
+    if (!ch.spot){ releaseOutdoor(ch); ch.state='idle'; ch.t=0.4; ch.cur=null; playAction(ch,'Idle_Loop'); return; }
     if (ch.swimYaw == null) ch.swimYaw = Math.random()*Math.PI*2;
     if (!isFinite(ch.root.position.x) || !isFinite(ch.root.position.z)){
       ch.root.position.x = ch.spot ? ch.spot.x : (POOL.x0+POOL.x1)/2;
@@ -2632,7 +2643,8 @@ function updateChar(ch, dt){
     return;
   }
   else if (ch.state==='tennis'){
-    ch.tennisT += dt;
+    if (!ch.spot){ stopRally(); releaseOutdoor(ch); ch.state='idle'; ch.t=0.4; ch.cur=null; playAction(ch,'Idle_Loop'); return; }
+    ch.tennisT = (ch.tennisT || 0) + dt;
     /* slide toward where the ball is heading, rather than a blind sine shuffle */
     const want = ch.trackX != null ? ch.trackX : ch.homeX;
     const lim = 3.2;
@@ -2972,6 +2984,7 @@ function animate(){
     window._chars = chars; window._nodeOf = nodeOf; window._cam = camera; window._controls = controls;
     window._scene = scene; window._renderer = renderer;
     window._setView = m=>{ viewMode = m; applyView(); };
+    window._ballZ = ()=> tennisBall ? tennisBall.position.z : 0;
     window._rallyInfo = ()=>rally ? { dir:rally.dir, t:+rally.t.toFixed(2), fromX:+rally.fromX.toFixed(1), toX:+rally.toX.toFixed(1) } : null;
     window._forceOutdoor = (ch, kind, partner)=>{
       releaseOutdoor(ch); releaseSeat(ch);
