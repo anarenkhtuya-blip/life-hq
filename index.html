@@ -275,7 +275,9 @@ const FURNITURE = {
             ['f_rugRound',-1.6,1.4,0], ['f_pottedPlant',-2.7,2.2,0], ['f_tableCoffee',-1.6,1.4,0],
             ['f_books',-1.75,1.3,15,1,0.42], ['k_BookSet',0.7,0.7,0,0.35,0.76], ['k_Cactus',0.05,0.95,0,0.35,0.76],
             ['k_FrameL',-1.5,-3.55,0,0.3,0.28], ['k_ShelfDec',-2.72,-0.8,90,0.4] ],
-  social: [ ['f_loungeSofa',2.0,0.9,180], ['f_loungeChairRelax',-2.4,1.4,55],
+  social: [ ['f_loungeChairRelax',-1.65,2.35,40], ['f_loungeChairRelax',-0.63,2.84,145],
+            ['f_sideTable',-1.08,2.16,0], ['f_lampSquareTable',-1.08,2.16,0,1,0.76],
+            ['f_loungeSofa',2.0,0.9,180], ['f_loungeChairRelax',-2.4,1.4,55],
             ['f_tableCoffee',0.2,1.2,0], ['f_rugRound',0.2,1.2,0,1.3],
             ['f_bookcaseOpen',3.3,-2.2,270], ['f_bookcaseClosedWide',3.3,-0.6,270],
             ['f_pottedPlant',3.3,2.9,0], ['f_plantSmall2',-3.3,-2.9,0],
@@ -766,6 +768,55 @@ addLamp(0, 2.35, -13.6, 1.3);           /* stair hall */
 addLamp(9.5, 4.6, -10.0, 1.8, true);    /* living room, high in the double-height volume */
 addLamp(-13.3, FLOOR2_Y+2.2, -16.6, 1.3, true);
 addLamp(-5.6, FLOOR2_Y+2.2, -16.6, 1.1);
+
+/* ---- living room build-out: media wall, second seating group, still life ----
+   It was the emptiest room in the house, so this fills it with the kind of layered
+   detail the reference interiors have. */
+function buildLivingRoom(){
+  const W = new THREE.MeshStandardMaterial({ color:0xb98047, roughness:0.7 });
+  const D = new THREE.MeshStandardMaterial({ color:0x3a332b, roughness:0.6 });
+  const CREAM = new THREE.MeshStandardMaterial({ color:0xefe6d5, roughness:0.9 });
+  const add = (m, x, y, z, cast) => { m.position.set(x,y,z); if (cast!==false){ m.castShadow = true; m.receiveShadow = true; } houseGroup.add(m); return m; };
+
+  /* media wall against the clad north wall */
+  const wz = WING.z0 + 0.55;
+  add(new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.5, 0.62), W), 9.8, 0.25, wz);
+  add(new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.06, 0.56), D), 9.8, 0.53, wz, false);
+  const tv = add(new THREE.Mesh(new THREE.BoxGeometry(3.1, 1.75, 0.1), D), 9.8, 1.72, wz - 0.1);
+  add(new THREE.Mesh(new THREE.BoxGeometry(2.95, 1.6, 0.03),
+    new THREE.MeshStandardMaterial({ color:0x14171c, roughness:0.25, metalness:0.1,
+      emissive:0x1a2430, emissiveIntensity:0.35 })), 9.8, 1.72, wz - 0.16, false);
+  /* shelves flanking it */
+  for (const sx of [6.4, 13.2]){
+    for (let i=0;i<3;i++){
+      add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.34), W), sx, 0.95 + i*0.62, wz);
+      for (let k=0;k<3;k++){
+        const bh = 0.16 + ((i*3+k)%3)*0.07;
+        add(new THREE.Mesh(new THREE.BoxGeometry(0.09, bh, 0.24),
+          new THREE.MeshStandardMaterial({ color:[0x8a6a45,0x7d8f6e,0xb08a72,0x8a94ad][(i+k)%4], roughness:0.85 })),
+          sx - 0.45 + k*0.34, 0.99 + i*0.62 + bh/2, wz);
+      }
+    }
+  }
+  /* (the second seating group is placed from the furniture list — real chair models) */
+  /* still life on the side table */
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.08,0.09,12),
+    new THREE.MeshStandardMaterial({ color:0xc9b28e, roughness:0.6 })), 7.5, 0.6, -6.42);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.14,10),
+    new THREE.MeshStandardMaterial({ color:0xf2e7cf, roughness:0.9, emissive:0xffcf8a, emissiveIntensity:0 })), 7.75, 0.63, -6.62);
+  /* a big floor plant cluster in the corner */
+  for (const [px, pz, ph] of [[15.2, -15.0, 1.5], [14.6, -14.3, 1.05], [15.6, -14.2, 0.8]]){
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.19,0.34,12),
+      new THREE.MeshStandardMaterial({ color:0xb9a184, roughness:0.9 })), px, 0.17, pz);
+    const leafMat = new THREE.MeshStandardMaterial({ color:0x5f9451, roughness:0.85 });
+    for (let k=0;k<7;k++){
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.05, ph*0.9, 0.16), leafMat);
+      leaf.position.set(px + Math.cos(k*0.9)*0.14, 0.34 + ph*0.45, pz + Math.sin(k*0.9)*0.14);
+      leaf.rotation.set(Math.cos(k)*0.22, k*0.9, Math.sin(k)*0.26);
+      leaf.castShadow = true; houseGroup.add(leaf);
+    }
+  }
+}
 
 /* ================= room labels ================= */
 const roomObjs = {};
@@ -1603,6 +1654,7 @@ function buildHedges(){
     }
   }
 }
+buildLivingRoom();
 buildHedges();
 
 /* ================= garden planting ================= */
@@ -1890,6 +1942,46 @@ function attachProp(headBone, kind, color){
   g.traverse(o=>{ if (o.isMesh) o.castShadow = true; });
   headBone.add(g);
 }
+/* ---- things in hands ---- */
+function makeHandProp(ch, kind){
+  ch.handProps = ch.handProps || {};
+  if (ch.handProps[kind]) return ch.handProps[kind];
+  let hand = null;
+  ch.root.traverse(o=>{ if (o.isBone && /hand_r/i.test(o.name)) hand = o; });
+  const g = new THREE.Group();
+  if (kind === 'mug'){
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.038,0.075,10),
+      new THREE.MeshStandardMaterial({ color:0xf0e7d6, roughness:0.7 }));
+    cup.position.y = 0.045; g.add(cup);
+    const brew = new THREE.Mesh(new THREE.CylinderGeometry(0.036,0.036,0.006,10),
+      new THREE.MeshStandardMaterial({ color:0x5a3a22, roughness:0.5 }));
+    brew.position.y = 0.079; g.add(brew);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.007, 5, 10),
+      new THREE.MeshStandardMaterial({ color:0xf0e7d6, roughness:0.7 }));
+    handle.position.set(0.05, 0.048, 0); handle.rotation.y = Math.PI/2; g.add(handle);
+  } else if (kind === 'book'){
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.035, 0.17),
+      new THREE.MeshStandardMaterial({ color:0x8a5f45, roughness:0.85 }));
+    b.position.y = 0.03; g.add(b);
+    const pages = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.026, 0.16),
+      new THREE.MeshStandardMaterial({ color:0xf4ecdc, roughness:0.95 }));
+    pages.position.y = 0.033; g.add(pages);
+  } else if (kind === 'box'){
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.24, 0.26),
+      new THREE.MeshStandardMaterial({ color:0xc09a6a, roughness:0.9 }));
+    b.position.set(0.02, 0.16, 0.14); g.add(b);
+  }
+  g.traverse(o=>{ if (o.isMesh) o.castShadow = true; });
+  g.scale.setScalar(0.9);
+  (hand || ch.root).add(g);
+  g.visible = false;
+  ch.handProps[kind] = g;
+  return g;
+}
+function showHand(ch, kind){
+  if (ch.handProps) for (const k in ch.handProps) ch.handProps[k].visible = false;
+  if (kind) makeHandProp(ch, kind).visible = true;
+}
 function makeRacket(ch){
   let hand = null;
   ch.root.traverse(o=>{ if (o.isBone && /hand_r/i.test(o.name)) hand = o; });
@@ -1996,10 +2088,12 @@ function route(from, to){
 }
 function setDestination(ch, vec, seat){
   ch.seat = seat || null;
+  if (ch.actions['Walk_Carry_Loop'] && Math.random() < 0.12){ ch.carrying = true; showHand(ch, 'box'); }
+  else { ch.carrying = false; showHand(ch, null); }
   ch.path = route(ch.root.position, vec);
   ch.segLen = null;
   ch.state = 'walk';
-  playAction(ch, ch.cfg.walk || 'Walk_Loop');
+  playAction(ch, ch.carrying ? 'Walk_Carry_Loop' : (ch.cfg.walk || 'Walk_Loop'));
 }
 function pickTarget(ch){
   const c = ch.cfg;
@@ -2022,6 +2116,94 @@ function pickTarget(ch){
   const rx = (Math.random()*2-1)*(room.hx-0.9), rz = (Math.random()*2-1)*(room.hz-0.9);
   setDestination(ch, new THREE.Vector3(room.x + rx, 0.22, room.z + rz), null);
 }
+/* ---- pool ripples and splash ---- */
+const ripples = [];
+let RIPPLE_GEO = null, RIPPLE_MAT = null;
+function ripple(x, z, scale){
+  if (!RIPPLE_GEO){
+    RIPPLE_GEO = new THREE.RingGeometry(0.28, 0.36, 24);
+    RIPPLE_MAT = new THREE.MeshBasicMaterial({ color:0xdff6ff, transparent:true,
+      opacity:0.6, side:THREE.DoubleSide, depthWrite:false });
+  }
+  const m = new THREE.Mesh(RIPPLE_GEO, RIPPLE_MAT.clone());
+  m.rotation.x = -Math.PI/2;
+  m.position.set(x, POOL_SURFACE + 0.015, z);
+  m.scale.setScalar(scale || 1);
+  scene.add(m);
+  ripples.push({ m, t:0, life:2.2, grow:(scale||1)*2.4 });
+}
+function updateRipples(dt){
+  for (let i=ripples.length-1;i>=0;i--){
+    const r = ripples[i]; r.t += dt;
+    const f = r.t / r.life;
+    r.m.scale.setScalar((r.grow) * (0.35 + f*1.0));
+    r.m.material.opacity = 0.55 * (1 - f);
+    if (f >= 1){ scene.remove(r.m); r.m.material.dispose(); ripples.splice(i,1); }
+  }
+}
+/* droplets, reusing the confetti burst machinery */
+function splash(x, y, z){
+  const N = 26, geo = new THREE.BufferGeometry();
+  const p = new Float32Array(N*3), v = [], colors = new Float32Array(N*3);
+  for (let i=0;i<N;i++){
+    p[i*3]=x+(Math.random()-.5)*.5; p[i*3+1]=y+0.15; p[i*3+2]=z+(Math.random()-.5)*.5;
+    v.push([(Math.random()-.5)*2.2, 1.6+Math.random()*1.8, (Math.random()-.5)*2.2]);
+    colors[i*3]=0.84; colors[i*3+1]=0.95; colors[i*3+2]=1.0;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(p,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.07, vertexColors:true }));
+  scene.add(pts);
+  bursts.push({ pts, v, life:1.1 });
+  ripple(x, z, 1.6);
+}
+
+/* ---- tennis ball: an actual rally, with the swings timed to the bounce ---- */
+let tennisBall = null, rally = null;
+function ensureBall(){
+  if (tennisBall) return tennisBall;
+  tennisBall = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10),
+    new THREE.MeshStandardMaterial({ color:0xdff05a, roughness:0.85 }));
+  tennisBall.castShadow = true; tennisBall.visible = false; scene.add(tennisBall);
+  return tennisBall;
+}
+function startRally(a, b){
+  ensureBall();
+  rally = { p:[a, b], dir:0, t:0, dur:1.25, swung:false,
+            fromX:a.root.position.x, toX:b.root.position.x };
+  tennisBall.visible = true;
+}
+function stopRally(){
+  rally = null;
+  if (tennisBall) tennisBall.visible = false;
+}
+function updateRally(dt){
+  if (!rally) return;
+  const from = rally.p[rally.dir], to = rally.p[1-rally.dir];
+  if (from.state !== 'tennis' || to.state !== 'tennis'){ stopRally(); return; }
+  rally.t += dt;
+  const f = Math.min(1, rally.t / rally.dur);
+  const z0 = from.spot.z, z1 = to.spot.z;
+  const x0 = rally.fromX, x1 = rally.toX;
+  /* two hops: a low bounce just past the net, then into the receiver */
+  const hop = f < 0.55 ? f/0.55 : (f-0.55)/0.45;
+  const height = (f < 0.55 ? 1.5 : 0.9) * Math.sin(hop*Math.PI);
+  tennisBall.position.set(x0 + (x1-x0)*f, COURT_Y + 0.1 + height, z0 + (z1-z0)*f);
+  /* receiver tracks the ball and swings as it arrives */
+  to.trackX = tennisBall.position.x;
+  if (!rally.swung && f > 0.82){
+    rally.swung = true;
+    playAction(to, to.actions['Interact'] ? 'Interact' : 'Yes', true);
+  }
+  if (f >= 1){
+    rally.dir = 1 - rally.dir; rally.t = 0; rally.swung = false;
+    const nf = rally.p[rally.dir], nt = rally.p[1-rally.dir];
+    rally.fromX = nf.root.position.x;
+    /* aim somewhere reachable on the far side */
+    rally.toX = nt.homeX + (Math.random()*2-1)*2.4;
+  }
+}
+
 /* ---- outdoor life: sun loungers, the pool, and a tennis rally ---- */
 const OUTDOOR = {
   loungers: [ {x:3.0, z:12.9, rot:Math.PI}, {x:5.9, z:12.9, rot:Math.PI},
@@ -2293,7 +2475,10 @@ function updateChar(ch, dt){
     else if (roll < 0.55+(c.danceBias||0.04) && ch.actions['Dance_Loop']){ ch.state='act'; ch.t=4.5; playAction(ch,'Dance_Loop'); }
     else if (roll < 0.85 && c.acts && c.acts.length){
       const [nm, dur, once] = c.acts[Math.floor(Math.random()*c.acts.length)];
-      if (ch.actions[nm]){ ch.state='act'; ch.t = dur; playAction(ch, nm, !!once); }
+      if (ch.actions[nm]){
+        ch.state='act'; ch.t = dur; playAction(ch, nm, !!once);
+        showHand(ch, nm === 'Consume' ? 'mug' : (nm === 'Idle_FoldArms_Loop' ? 'book' : null));
+      }
       else { ch.t = 2; }
     }
     else if (roll < 0.9 && ch.actions['Fixing_Kneeling']){ ch.state='act'; ch.t=3.2; playAction(ch,'Fixing_Kneeling',true); }
@@ -2333,6 +2518,7 @@ function updateChar(ch, dt){
           /* there is no swim clip in the animation pack, so floating on the back
              reuses the solved lie-down pose, and treading water keeps them upright
              but submerged to the chest. Both read as swimming; standing did not. */
+          splash(ch.spot.x, POOL_SURFACE, ch.spot.z);
           ch.swimStyle = Math.random() < 0.55 ? 'float' : 'tread';
           ch.state = 'swim'; ch.t = 22 + Math.random()*20;
           ch.swimT = Math.random()*6;
@@ -2358,6 +2544,7 @@ function updateChar(ch, dt){
           if (!ch.racket) ch.racket = makeRacket(ch);
           ch.racket.visible = true;
           playAction(ch, 'Idle_Loop');
+          if (ch.rally && ch.rally.state === 'tennis') startRally(ch, ch.rally);
         }
         else if (ch.seat){
           ch.root.position.set(ch.seat.x, 0.22, ch.seat.z);
@@ -2396,7 +2583,12 @@ function updateChar(ch, dt){
     return;
   }
   else if (ch.state==='swim'){
-    ch.swimT += dt;
+    if (ch.swimYaw == null) ch.swimYaw = Math.random()*Math.PI*2;
+    if (!isFinite(ch.root.position.x) || !isFinite(ch.root.position.z)){
+      ch.root.position.x = ch.spot ? ch.spot.x : (POOL.x0+POOL.x1)/2;
+      ch.root.position.z = ch.spot ? ch.spot.z : (POOL.z0+POOL.z1)/2;
+    }
+    ch.swimT = (ch.swimT || 0) + dt;
     const drift = 0.42;
     ch.swimYaw += Math.sin(ch.swimT*0.23)*dt*0.5;
     const dx = Math.sin(ch.swimYaw)*drift*dt, dz = Math.cos(ch.swimYaw)*drift*dt;
@@ -2406,6 +2598,9 @@ function updateChar(ch, dt){
     if (nx < POOL.x0+m || nx > POOL.x1-m){ ch.swimYaw = -ch.swimYaw; nx = ch.root.position.x; }
     if (nz < POOL.z0+m || nz > POOL.z1-m){ ch.swimYaw = Math.PI - ch.swimYaw; nz = ch.root.position.z; }
     ch.root.position.x = nx; ch.root.position.z = nz;
+    /* a ripple trail so they visibly disturb the water */
+    ch.ripT = (ch.ripT || 0) + dt;
+    if (ch.ripT > 0.55){ ch.ripT = 0; ripple(nx, nz, 0.85); }
     if (ch.swimStyle === 'float'){
       ch.root.position.y = POOL_SURFACE - 0.24 - LAY_PELVIS_DY + Math.sin(ch.swimT*1.3)*0.035;
       ch.root.rotation.x = (LAY_TILT||0);
@@ -2419,6 +2614,7 @@ function updateChar(ch, dt){
     }
     if (ch.t<=0){
       /* climb out at the nearest edge */
+      splash(ch.root.position.x, POOL_SURFACE, ch.root.position.z);
       releaseOutdoor(ch);
       ch.root.rotation.set(0, ch.root.rotation.y, 0);
       ch.root.position.set(ch.root.position.x, DECK_Y, POOL.z0 - 1.5);
@@ -2429,17 +2625,15 @@ function updateChar(ch, dt){
   }
   else if (ch.state==='tennis'){
     ch.tennisT += dt;
-    /* shuffle along the baseline and swing when the ball comes over */
-    ch.root.position.x = ch.homeX + Math.sin(ch.tennisT*1.15)*2.1;
+    /* slide toward where the ball is heading, rather than a blind sine shuffle */
+    const want = ch.trackX != null ? ch.trackX : ch.homeX;
+    const lim = 3.2;
+    const tx = Math.max(ch.homeX - lim, Math.min(ch.homeX + lim, want));
+    ch.root.position.x += (tx - ch.root.position.x) * Math.min(1, dt*2.6);
     ch.root.position.y = COURT_Y;
     ch.root.rotation.y = ch.spot.rot;
-    const phase = (ch.tennisT % 2.0);
-    const mine = (ch.spot === OUTDOOR.tennis[0]) ? phase < 1.0 : phase >= 1.0;
-    if (mine && !ch.swung && phase % 1.0 > 0.55){
-      ch.swung = true; playAction(ch, ch.actions['Interact'] ? 'Interact' : 'Yes', true);
-    } else if (!mine){ ch.swung = false; }
     if (ch.t<=0){
-      releaseOutdoor(ch);
+      stopRally(); releaseOutdoor(ch);
       ch.state='idle'; ch.t=1.5; ch.cur=null; playAction(ch,'Idle_Loop');
     }
     return;
@@ -2452,7 +2646,7 @@ function updateChar(ch, dt){
     ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop');
   }
   else if (ch.state==='greet' && ch.t<=0){ ch.state='idle'; ch.t=1.5+Math.random()*3; playAction(ch,'Idle_Loop'); }
-  else if (ch.state==='act' && ch.t<=0){ ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop'); }
+  else if (ch.state==='act' && ch.t<=0){ showHand(ch, null); ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop'); }
   /* bubble: live activity + personality quips */
   ch.bubT -= dt;
   if (['greet','layDown','wake','swim','tennis','sunbathe'].includes(ch.state) || ch.goingToBed) return;
@@ -2726,6 +2920,8 @@ function animate(){
     }
   }
   keyboardCamera(step);
+  updateRally(step);
+  updateRipples(step);
   updateBursts(step);
   if (poolWater) poolWater.material.uniforms.uTime.value += step;
   if (composer && FX.on) composer.render(step); else renderer.render(scene, camera);
@@ -2782,6 +2978,7 @@ function animate(){
           if (!c.racket) c.racket = makeRacket(c);
           c.racket.visible = true; c.cur = null; playAction(c, 'Idle_Loop');
         });
+        startRally(ch, partner);
         return;
       }
       const list = kind === 'lounge' ? OUTDOOR.loungers : OUTDOOR.pool;
@@ -2798,6 +2995,7 @@ function animate(){
       } else {
         ch.root.position.set(sp.x, -0.62, sp.z);
         ch.state = 'swim'; ch.t = 90; ch.swimT = Math.random()*4;
+        ch.swimYaw = Math.random()*Math.PI*2; ch.swimStyle = Math.random()<0.55?'float':'tread';
         if (ch.ring) ch.ring.visible = false; ch.cur = null; playAction(ch, 'Idle_Loop');
       }
     };
