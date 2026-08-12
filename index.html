@@ -111,7 +111,7 @@
 </div>
 
 <div id="term">
-  <div id="termhead"><span class="tab">EVENT LOG</span><span class="right">click to fold · drag to orbit · click a room</span></div>
+  <div id="termhead"><span class="tab">EVENT LOG</span><span class="right">drag orbit · right-drag pan · WASD move · scroll zoom · V view · R reset</span></div>
   <div id="termbody"></div>
 </div>
 
@@ -230,27 +230,27 @@ const ROOM_HOW = {
   bedroom:'Everyone sleeps here 23:00–6:00 Ulaanbaatar time. Beds assigned — check the name tags.'
 };
 const CAST = [
-  { key:'anar', name:'ANAR',  body:'web_char_anar.glb', hair:'web_Hair_SimpleParted.glb', color:0x6aa2e8, home:null,
+  { key:'anar', build:{ h:1.00, w:1.00, head:1.00 }, prop:'plumbob', name:'ANAR',  body:'web_char_anar.glb', hair:'web_Hair_SimpleParted.glb', color:0x6aa2e8, home:null,
     walk:'Walk_Loop', speed:1.6, sitBias:0.25, danceBias:0.06,
     acts:[['Idle_TalkingPhone_Loop',4.5],['Interact',2.2,1],['Yes',1.6,1]],
     persona:'The Sim himself — curious, everywhere at once, checks on everyone.',
     quips:["My agents work while I live","Plumbob's looking green today","Just checking on the team","Fulbright, then the world"] },
-  { key:'job-scout', name:'SCOUT', body:'web_char_job-scout.glb', hair:'web_Hair_Beard.glb', color:0xd9b36a, home:'career',
+  { key:'job-scout', build:{ h:1.06, w:0.93, head:0.97 }, prop:'cap', name:'SCOUT', body:'web_char_job-scout.glb', hair:'web_Hair_Beard.glb', color:0xd9b36a, home:'career',
     walk:'Walk_Loop', speed:1.95, sitBias:0.3, danceBias:0.02,
     acts:[['Idle_No_Loop',3],['Idle_TalkingPhone_Loop',4],['Interact',2.2,1]],
     persona:'Restless hunter. Paces fast, reads every job board twice, never pads a report.',
     quips:["Sweeping the boards…","Canva careers, third pass","Stripe posted something new?","Only fresh roles. No stale listings."] },
-  { key:'chief-of-staff', name:'ODKO', body:'web_char_chief-of-staff.glb', hair:'web_Hair_Buns.glb', color:0x5abfae, home:'finances',
+  { key:'chief-of-staff', build:{ h:0.97, w:0.95, head:1.02 }, prop:'glasses', name:'ODKO', body:'web_char_chief-of-staff.glb', hair:'web_Hair_Buns.glb', color:0x5abfae, home:'finances',
     walk:'Walk_Formal_Loop', speed:1.7, sitBias:0.45, danceBias:0.01,
     acts:[['Idle_FoldArms_Loop',5],['Consume',3,1],['Chest_Open',2.4,1]],
     persona:'Composed and exact. Walks like a minister, keeps the ledger and the calendar spotless.',
     quips:["Inbox: nearly zero","Brief lands at 7:35 sharp","The ledger balances. Again.","Priorities: three. Always three."] },
-  { key:'application-writer', name:'INK', body:'web_char_application-writer.glb', hair:'web_Hair_Buzzed.glb', color:0x7ec98a, home:'career',
+  { key:'application-writer', build:{ h:0.92, w:1.10, head:1.05 }, prop:'headphones', name:'INK', body:'web_char_application-writer.glb', hair:'web_Hair_Buzzed.glb', color:0x7ec98a, home:'career',
     walk:'Walk_Loop', speed:1.15, sitBias:0.6, danceBias:0.03,
     acts:[['Idle_FoldArms_Loop',4],['Consume',3,1]],
     persona:'Slow walker, fast writer. Lives at the desk, reads every draft aloud twice.',
     quips:["Drafting a killer opener…","Reading it aloud. Twice.","Your voice, sharpened","Bring me a posting!"] },
-  { key:'ypg-producer', name:'TUYA', body:'web_char_ypg-producer.glb', hair:'web_Hair_Long.glb', color:0xe8798a, home:'civic',
+  { key:'ypg-producer', build:{ h:0.99, w:1.02, head:1.00 }, prop:'tote', name:'TUYA', body:'web_char_ypg-producer.glb', hair:'web_Hair_Long.glb', color:0xe8798a, home:'civic',
     walk:'Walk_Loop', speed:1.5, sitBias:0.3, danceBias:0.12,
     acts:[['Farm_Watering',4,1],['Consume',3,1],['Yes',1.6,1]],
     persona:'Warm organizer with event energy. Straightens chairs, remembers every member\'s name.',
@@ -437,10 +437,28 @@ let controls = null;
 if (!WALLPAPER){
   controls = new OrbitControls(camera, canvas);
   controls.target.set(8, 0, -4);
-  controls.enablePan = false;
-  controls.minZoom = 0.55; controls.maxZoom = 3.2;
-  controls.minPolarAngle = 0.5; controls.maxPolarAngle = 1.25;
+  /* free look: pan was disabled, which is why you couldn't move across the house */
+  controls.enablePan = true;
+  controls.screenSpacePanning = true;
+  controls.panSpeed = 1.1;
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.minZoom = 0.45; controls.maxZoom = 9.0;
+  controls.minPolarAngle = 0.12; controls.maxPolarAngle = 1.45;
+  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+  controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   controls.update();
+  /* keep the camera from wandering off the lot */
+  const PAN_LIMIT = { x:[-30, 46], z:[-32, 24] };
+  controls.addEventListener('change', ()=>{
+    const t = controls.target;
+    const cx = Math.min(Math.max(t.x, PAN_LIMIT.x[0]), PAN_LIMIT.x[1]);
+    const cz = Math.min(Math.max(t.z, PAN_LIMIT.z[0]), PAN_LIMIT.z[1]);
+    const cy = Math.min(Math.max(t.y, -2), 8);
+    if (cx !== t.x || cz !== t.z || cy !== t.y){
+      camera.position.x += cx - t.x; camera.position.y += cy - t.y; camera.position.z += cz - t.z;
+      t.set(cx, cy, cz);
+    }
+  });
 }
 
 /* lights (phase-aware) */
@@ -1331,52 +1349,68 @@ function buildOutdoors(){
   }
   /* water: a mipmapped caustic sheet over a graded blue base — no per-pixel
      sine lattice, so it never aliases into blobs at this zoom */
+  /* caustics drawn on a jittered grid so coverage is even — random scattering left
+     big empty patches, which read as dark blotches once composited over the water */
   const causticTex = cvsTex(512, 512, (g,w,h)=>{
-    g.fillStyle = 'rgba(0,0,0,0)'; g.clearRect(0,0,w,h);
-    g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineCap = 'round';
-    for (let i=0;i<130;i++){
-      const x0 = Math.random()*w, y0 = Math.random()*h;
-      g.lineWidth = 1.5 + Math.random()*4.5;
-      g.beginPath(); g.moveTo(x0, y0);
-      let x = x0, y = y0;
-      for (let k=0;k<5;k++){
-        x += (Math.random()-0.5)*90; y += (Math.random()-0.5)*90;
-        g.lineTo(x, y);
+    g.clearRect(0,0,w,h);
+    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineCap = 'round'; g.lineJoin = 'round';
+    const N = 13, cell = w/N;
+    for (let gy=-1; gy<=N; gy++){
+      for (let gx=-1; gx<=N; gx++){
+        const cx = (gx+0.5)*cell + (Math.random()-0.5)*cell*0.7;
+        const cy = (gy+0.5)*cell + (Math.random()-0.5)*cell*0.7;
+        g.lineWidth = 1.6 + Math.random()*3.4;
+        g.beginPath();
+        const r = cell*(0.5 + Math.random()*0.45);
+        const a0 = Math.random()*6.28;
+        g.moveTo(cx + Math.cos(a0)*r, cy + Math.sin(a0)*r);
+        for (let k=1;k<=4;k++){
+          const a = a0 + k*1.4 + Math.random()*0.9;
+          const rr = r*(0.55 + Math.random()*0.7);
+          g.quadraticCurveTo(cx + Math.cos(a-0.6)*rr*1.2, cy + Math.sin(a-0.6)*rr*1.2,
+                             cx + Math.cos(a)*rr,          cy + Math.sin(a)*rr);
+        }
+        g.stroke();
       }
-      g.stroke();
     }
-    g.globalAlpha = 0.5;
-    g.filter = 'blur(3px)';
-    g.drawImage(g.canvas, 0, 0);
   });
   causticTex.wrapS = causticTex.wrapT = THREE.RepeatWrapping;
   const baseW = new THREE.Mesh(new THREE.PlaneGeometry(pw-0.08, pd-0.08),
-    new THREE.MeshStandardMaterial({ color:0x1d7ba1, roughness:0.14, metalness:0.05,
-      transparent:true, opacity:0.9 }));
+    new THREE.MeshStandardMaterial({ color:0x2a8fb4, roughness:0.14, metalness:0.05,
+      transparent:true, opacity:0.92 }));
   baseW.rotation.x = -Math.PI/2; baseW.position.set(cx, -0.315, cz);
   baseW.receiveShadow = false; scene.add(baseW);
   const plight = new THREE.PointLight(0x54c8e8, 0, 14, 2);
   plight.position.set(cx, -0.8, cz); plight.userData.mult = 2.0; scene.add(plight); lampLights.push(plight);
   poolWater = new THREE.Mesh(new THREE.PlaneGeometry(pw-0.1, pd-0.1, 32, 20),
     new THREE.ShaderMaterial({
-      transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-      uniforms:{ uTime:{value:0}, uTex:{value:causticTex},
+      transparent:true, depthWrite:false,
+      uniforms:{ uTime:{value:0},
                  uA:{value:new THREE.Color(0x2a93b8)}, uB:{value:new THREE.Color(0x7fd8ea)} },
       vertexShader:`uniform float uTime; varying vec2 vUv; varying float vW;
         void main(){ vUv=uv; vec3 p=position;
           float w = sin(p.x*1.5+uTime*1.0)*0.032 + sin(p.y*2.1-uTime*0.75)*0.026;
           p.z += w; vW = w;
           gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
-      fragmentShader:`uniform sampler2D uTex; uniform float uTime; uniform vec3 uA,uB;
+      fragmentShader:`uniform float uTime; uniform vec3 uA,uB;
         varying vec2 vUv; varying float vW;
         void main(){
-          vec2 s1 = vUv*vec2(2.2,3.0) + vec2(uTime*0.020, uTime*0.014);
-          vec2 s2 = vUv*vec2(1.7,2.3) - vec2(uTime*0.015, uTime*0.011);
-          float c = texture2D(uTex, s1).a * texture2D(uTex, s2).a;
+          /* Domain-warped sines instead of a tiled texture: the previous version
+             repeated every 2.5 units and each tile had a low-coverage centre, which
+             showed up as a regular lattice of dark blobs across the pool. */
+          vec2 p = vUv * vec2(13.0, 7.6);
+          float t = uTime * 0.6;
+          float wx = sin(p.y*1.31 - t*0.83) * 1.7;
+          float wy = sin(p.x*0.97 + t*0.61) * 1.5;
+          float n  = sin(p.x*2.37 + wx + t*1.07);
+          n       += sin(p.y*3.11 + wy - t*0.89);
+          n       += sin((p.x*1.63 + p.y*2.11) + (wx+wy)*0.5 + t*0.53);
+          float c = smoothstep(0.55, 2.45, n + 1.6);
           float edge = min(min(vUv.x, 1.0-vUv.x), min(vUv.y, 1.0-vUv.y));
-          float shallow = 1.0 - smoothstep(0.0, 0.20, edge);
-          vec3 col = mix(uA, uB, shallow*0.6) * (c*0.85 + 0.10 + max(0.0, vW)*1.6);
-          gl_FragColor = vec4(col, 1.0); }`
+          float shallow = 1.0 - smoothstep(0.0, 0.22, edge);
+          vec3 tint = mix(uB, vec3(0.92,0.99,1.0), 0.55);
+          float a = c*0.5 + shallow*0.14 + max(0.0, vW)*1.2;
+          gl_FragColor = vec4(tint, clamp(a, 0.0, 0.75)); }`
     }));
   poolWater.rotation.x = -Math.PI/2; poolWater.position.set(cx, -0.30, cz); scene.add(poolWater);
 }
@@ -1423,13 +1457,13 @@ function buildTennis(){
   const net = new THREE.Mesh(new THREE.PlaneGeometry(pw+1.0, 1.07),
     new THREE.MeshStandardMaterial({ map:netTex, alphaMap:netTex, transparent:true,
       side:THREE.DoubleSide, roughness:0.9, color:0x1b1b1b }));
-  net.position.set(cx, -0.28+0.535, cz); net.rotation.y = Math.PI/2; scene.add(net);
-  const tape = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, pw+1.0), MAT.trimPale);
+  net.position.set(cx, -0.28+0.535, cz); scene.add(net);
+  const tape = new THREE.Mesh(new THREE.BoxGeometry(pw+1.0, 0.09, 0.07), MAT.trimPale);
   tape.position.set(cx, -0.28+1.07, cz); tape.castShadow = true; scene.add(tape);
   for (const s of [-1,1]){
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.25, 10),
       new THREE.MeshStandardMaterial({ color:0x2c3a33, roughness:0.6 }));
-    post.position.set(cx, -0.28+0.62, cz + s*(pw/2+0.5)); post.castShadow = true; scene.add(post);
+    post.position.set(cx + s*(pw/2+0.5), -0.28+0.62, cz); post.castShadow = true; scene.add(post);
   }
   /* chain-link fence */
   const fenceTex = cvsTex(64, 64, (g,w,h)=>{
@@ -1712,7 +1746,6 @@ async function buildCast(){
     const bodyGltf = await loadGLB('./'+c.body);
     const root = SkeletonUtils.clone(bodyGltf.scene);
     root.traverse(o=>{ if (o.isMesh || o.isSkinnedMesh){ o.castShadow = true; o.frustumCulled = false; } });
-    root.scale.setScalar(1.15);
     scene.add(root);
     /* hair: attach at T-pose */
     try {
@@ -1755,6 +1788,13 @@ async function buildCast(){
     const home = ROOMS.find(rr=>rr.key===c.home);
     const startX = home? home.x + (Math.random()*2-1)*(home.hx-1) : 0;
     const startZ = home? home.z + (Math.random()*2-1)*(home.hz-1) : -13.5;
+    /* build variation: height, width and head size give each agent a real silhouette */
+    const bld = c.build || { h:1, w:1, head:1 };
+    root.scale.set(1.15*bld.w, 1.15*bld.h, 1.15*bld.w);
+    let headBone = null;
+    root.traverse(o=>{ if (o.isBone && o.name === 'Head') headBone = o; });
+    if (headBone && bld.head !== 1) headBone.scale.setScalar(bld.head);
+    if (headBone) attachProp(headBone, c.prop, c.color);
     root.position.set(startX, 0.22, startZ);
     const ch = { cfg:c, root, mixer, actions, cur:null, plumb, state:'idle', t:1+Math.random()*3,
       target:null, seat:null, speed:c.speed||1.5, bub, bubT: Math.random()*14, ring, pip };
@@ -1762,6 +1802,59 @@ async function buildCast(){
     chars.push(ch);
   }
   castFiles.forEach(()=>tick());
+}
+/* small props hung off the head bone so each agent is identifiable at a glance */
+function attachProp(headBone, kind, color){
+  if (!kind) return;
+  const g = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color:0x2a2420, roughness:0.6 });
+  const tint = new THREE.MeshStandardMaterial({ color:color||0xcccccc, roughness:0.7 });
+  if (kind === 'cap'){
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 8, 0, Math.PI*2, 0, Math.PI/2), tint);
+    crown.position.y = 0.075; g.add(crown);
+    const peak = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.022, 0.13), tint);
+    peak.position.set(0, 0.072, 0.12); g.add(peak);
+  } else if (kind === 'glasses'){
+    for (const sx of [-0.052, 0.052]){
+      const lens = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 14), dark);
+      lens.position.set(sx, 0.012, 0.108); g.add(lens);
+    }
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.009, 0.009), dark);
+    bridge.position.set(0, 0.012, 0.108); g.add(bridge);
+  } else if (kind === 'headphones'){
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.014, 6, 16, Math.PI), dark);
+    band.rotation.y = Math.PI/2; band.position.y = 0.045; g.add(band);
+    for (const sx of [-0.112, 0.112]){
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10), tint);
+      cup.rotation.z = Math.PI/2; cup.position.set(sx, 0.01, 0); g.add(cup);
+    }
+  } else if (kind === 'tote'){
+    const clip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.018, 0.018), tint);
+    clip.position.set(0.075, 0.055, 0.045); clip.rotation.z = 0.3; g.add(clip);
+  } else if (kind === 'plumbob'){
+    return;   /* anar already has the plumbob above his head */
+  }
+  g.traverse(o=>{ if (o.isMesh) o.castShadow = true; });
+  headBone.add(g);
+}
+function makeRacket(ch){
+  let hand = null;
+  ch.root.traverse(o=>{ if (o.isBone && /hand_r/i.test(o.name)) hand = o; });
+  const g = new THREE.Group();
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.22,8),
+    new THREE.MeshStandardMaterial({ color:0x2f2a24, roughness:0.8 }));
+  grip.position.y = 0.11; g.add(grip);
+  const head = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.016, 6, 18),
+    new THREE.MeshStandardMaterial({ color:0xd8d2c4, roughness:0.6 }));
+  head.position.y = 0.33; head.scale.set(1, 1.25, 1); g.add(head);
+  const strings = new THREE.Mesh(new THREE.CircleGeometry(0.108, 14),
+    new THREE.MeshStandardMaterial({ color:0xf2efe6, transparent:true, opacity:0.35, side:THREE.DoubleSide }));
+  strings.position.y = 0.33; strings.scale.set(1, 1.25, 1); g.add(strings);
+  g.traverse(o=>{ if (o.isMesh) o.castShadow = true; });
+  g.scale.setScalar(0.9); g.rotation.z = -0.5;
+  (hand || ch.root).add(g);
+  g.visible = false;
+  return g;
 }
 function playAction(ch, name, once){
   const a = ch.actions[name]; if (!a || ch.cur===a) return;
@@ -1782,6 +1875,8 @@ function nodeOf(pos){
   /* back corridor + stair hall route as one 'hall' node */
   if (pos.x >= MAIN.x0 && pos.x <= MAIN.x1 && pos.z >= MAIN.z0 && pos.z <= CORR_Z) return 'hall';
   if (pos.x >= -3 && pos.x <= 3 && pos.z >= CORR_Z && pos.z <= ROW_Z) return 'hall';
+  if (pos.x >= COURT.x0-1.5 && pos.x <= COURT.x1+1.5 && pos.z >= COURT.z0-1.5 && pos.z <= COURT.z1+1.5) return 'tennis';
+  if (pos.x > 18.0) return 'garden';
   return 'outside';
 }
 const V3 = (x,z,y=0.22)=> new THREE.Vector3(x, y, z);
@@ -1799,8 +1894,10 @@ const EDGES = {
   'finances|social':[V3(MAIN.x1, -7.2)],
   /* stair hall opens straight into the double-height living room */
   'hall|social':   [V3(MAIN.x1, -13.4)],
-  /* living room glass doors onto the terrace */
-  'social|outside':[V3(9.5, WING.z1+0.9), V3(9.5, 3.0)],
+  /* living room glass doors onto the terrace, then out to the pool and court */
+  'social|outside':[V3(9.5, WING.z1+0.9), V3(9.5, 1.0)],
+  'outside|garden':[V3(18.6, 1.0), V3(20.2, -3.0)],
+  'garden|tennis': [V3(22.4, -3.0), V3(25.0, -3.0)],
   /* up the open oak stair, along the landing, into the bedroom */
   'hall|bedroom':  [V3(STAIR.x0+0.7, STAIR.z, 0.22), V3(STAIR.x0-0.2, STAIR.z, 0.22),
                     V3(STAIR.x1+0.1, STAIR.z, FLOOR2_Y+0.22),
@@ -1853,6 +1950,10 @@ function setDestination(ch, vec, seat){
 }
 function pickTarget(ch){
   const c = ch.cfg;
+  /* in daylight there's a decent chance of heading out to the pool or the court */
+  if (isDaytime() && !ch.spot && Math.random() < (c.outdoorBias != null ? c.outdoorBias : 0.20)){
+    if (goOutdoor(ch)) return;
+  }
   if (Math.random() < (c.sitBias||0.3)){
     const opts = SEATS.filter(st=>!st.busy && (!c.home || st.room===c.home || Math.random()<0.25));
     if (opts.length){
@@ -1868,6 +1969,53 @@ function pickTarget(ch){
   const rx = (Math.random()*2-1)*(room.hx-0.9), rz = (Math.random()*2-1)*(room.hz-0.9);
   setDestination(ch, new THREE.Vector3(room.x + rx, 0.22, room.z + rz), null);
 }
+/* ---- outdoor life: sun loungers, the pool, and a tennis rally ---- */
+const OUTDOOR = {
+  loungers: [ {x:3.0, z:12.9, rot:Math.PI}, {x:5.9, z:12.9, rot:Math.PI},
+              {x:9.9, z:12.9, rot:Math.PI}, {x:12.8, z:12.9, rot:Math.PI},
+              {x:16.9, z:9.0, rot:Math.PI/2}, {x:16.9, z:5.6, rot:Math.PI/2} ],
+  pool:     [ {x:4.2, z:5.2}, {x:7.0, z:9.4}, {x:11.6, z:5.6}, {x:13.0, z:9.6} ],
+  tennis:   [ {x:30.0, z:-10.6, rot:0}, {x:30.0, z:4.6, rot:Math.PI} ]
+};
+OUTDOOR.loungers.forEach(o=>o.busy=false);
+OUTDOOR.pool.forEach(o=>o.busy=false);
+OUTDOOR.tennis.forEach(o=>o.busy=false);
+function isDaytime(){ const h = hourFrac(); return h >= 8.5 && h < 20.0; }
+function freeSpot(list){ const f = list.filter(o=>!o.busy); return f.length ? f[Math.floor(Math.random()*f.length)] : null; }
+function releaseOutdoor(ch){
+  if (ch.spot){ ch.spot.busy = false; ch.spot = null; }
+  if (ch.racket){ ch.racket.visible = false; }
+  if (ch.rally){ ch.rally = null; }
+}
+function goOutdoor(ch){
+  const roll = Math.random();
+  if (roll < 0.38){
+    const sp = freeSpot(OUTDOOR.loungers); if (!sp) return false;
+    sp.busy = true; ch.spot = sp; ch.outKind = 'lounge';
+    setDestination(ch, new THREE.Vector3(sp.x, 0.22, sp.z + 1.6), null);
+    return true;
+  }
+  if (roll < 0.66){
+    const sp = freeSpot(OUTDOOR.pool); if (!sp) return false;
+    sp.busy = true; ch.spot = sp; ch.outKind = 'swim';
+    setDestination(ch, new THREE.Vector3(sp.x, 0.22, POOL.z0 - 1.3), null);
+    return true;
+  }
+  /* tennis needs a partner, so only start when both ends are free */
+  if (OUTDOOR.tennis.every(t=>!t.busy)){
+    const other = chars.find(c => c !== ch && ['idle','walk'].includes(c.state) && !c.goingToBed && !c.spot);
+    if (!other) return false;
+    OUTDOOR.tennis[0].busy = OUTDOOR.tennis[1].busy = true;
+    ch.spot = OUTDOOR.tennis[0]; other.spot = OUTDOOR.tennis[1];
+    ch.outKind = other.outKind = 'tennis';
+    ch.rally = other; other.rally = ch;
+    releaseSeat(other);
+    setDestination(ch, new THREE.Vector3(ch.spot.x, 0.22, ch.spot.z), null);
+    setDestination(other, new THREE.Vector3(other.spot.x, 0.22, other.spot.z), null);
+    return true;
+  }
+  return false;
+}
 function releaseSeat(ch){ if (ch.seat){ ch.seat.busy=false; ch.seat=null; } }
 
 /* --- greetings --- */
@@ -1878,6 +2026,7 @@ function tryGreetings(){
     const a = chars[i], b = chars[j];
     if (isNight()) return;
     if (a.goingToBed || b.goingToBed) continue;
+    if (a.spot || b.spot) continue;
     if (!['idle','walk'].includes(a.state) || !['idle','walk'].includes(b.state)) continue;
     const key = a.cfg.key+'|'+b.cfg.key;
     if ((greetCooldown[key]||0) > perfNow()) continue;
@@ -2043,7 +2192,8 @@ function updateChar(ch, dt){
     ch.plumb.material.color.set(moodColor(avgNeeds())); }
   ch.t -= dt;
   /* bedtime */
-  if (isNight() && !['sleep','layDown','wake'].includes(ch.state)
+  if (isNight() && ch.spot) releaseOutdoor(ch);
+  if (isNight() && !['sleep','layDown','wake','swim','tennis','sunbathe'].includes(ch.state)
       && (!ch.goingToBed || (ch.state==='idle' && (!ch.path || !ch.path.length)))){
     const bed = bedOf(ch.cfg.key);
     if (bed){ releaseSeat(ch); ch.goingToBed = true;
@@ -2061,7 +2211,11 @@ function updateChar(ch, dt){
   }
   if (ch.state==='layDown'){
     applyLay(ch, 1 - Math.max(0, ch.t)/ch.layDur);
-    if (ch.t<=0){ applyLay(ch, 1); ch.state='sleep'; ch.t=8; holdAsleep(ch); }
+    if (ch.t<=0){
+      applyLay(ch, 1); holdAsleep(ch);
+      if (ch.afterLay === 'sunbathe'){ ch.afterLay = null; ch.state='sunbathe'; ch.t = 24 + Math.random()*20; }
+      else { ch.state='sleep'; ch.t=8; }
+    }
   }
   else if (ch.state==='wake'){
     /* reverse of the tilt: unfold from the mattress back onto their feet */
@@ -2107,6 +2261,36 @@ function updateChar(ch, dt){
           const bed = bedOf(ch.cfg.key);
           startLay(ch, bed);
         }
+        else if (ch.spot && ch.outKind === 'lounge'){
+          if (LAY_TILT === null) solveLayTilt(ch);
+          ch.layDur = (ch.actions['LayToIdle'] ? ch.actions['LayToIdle'].getClip().duration : 1.2);
+          ch.layP0 = ch.root.position.clone(); ch.layYaw0 = ch.root.rotation.y;
+          const lyaw = ch.spot.rot || 0;
+          ch.layTo = { x: ch.spot.x - LAY_MID_DZ*Math.sin(lyaw),
+                       y: 0.75 - LAY_PELVIS_DY,
+                       z: ch.spot.z - LAY_MID_DZ*Math.cos(lyaw), yaw: lyaw };
+          if (ch.ring) ch.ring.visible = false;
+          if (ch.pip) ch.pip.visible = false;
+          ch.state = 'layDown'; ch.t = ch.layDur + 0.1;
+          if (!playLay(ch, true)){ applyLay(ch, 1); ch.state='sunbathe'; ch.t=26; }
+          else ch.afterLay = 'sunbathe';
+        }
+        else if (ch.spot && ch.outKind === 'swim'){
+          ch.root.position.set(ch.spot.x, -0.62, ch.spot.z);
+          ch.state = 'swim'; ch.t = 20 + Math.random()*18;
+          ch.swimT = Math.random()*6;
+          if (ch.ring) ch.ring.visible = false;
+          playAction(ch, 'Idle_Loop');
+        }
+        else if (ch.spot && ch.outKind === 'tennis'){
+          ch.root.position.set(ch.spot.x, 0.22, ch.spot.z);
+          ch.root.rotation.y = ch.spot.rot;
+          ch.state = 'tennis'; ch.t = 26 + Math.random()*14;
+          ch.tennisT = 0; ch.homeX = ch.spot.x;
+          if (!ch.racket) ch.racket = makeRacket(ch);
+          ch.racket.visible = true;
+          playAction(ch, 'Idle_Loop');
+        }
         else if (ch.seat){
           ch.root.position.set(ch.seat.x, 0.22, ch.seat.z);
           ch.root.rotation.y = ch.seat.rot;
@@ -2126,6 +2310,46 @@ function updateChar(ch, dt){
       ch.root.rotation.y = cy + dyaw * Math.min(1, dt*8);
     }
   }
+  else if (ch.state==='sunbathe'){
+    if (ch.t<=0){
+      endLay(ch); releaseOutdoor(ch);
+      ch.root.position.y = 0.22; ch.root.rotation.x = 0;
+      ch.state='idle'; ch.t=1.5; ch.cur=null; playAction(ch,'Idle_Loop');
+    }
+    return;
+  }
+  else if (ch.state==='swim'){
+    /* bob along in the water with only the top half showing */
+    ch.swimT += dt;
+    ch.root.position.y = -0.62 + Math.sin(ch.swimT*1.7)*0.045;
+    ch.root.position.x = ch.spot.x + Math.sin(ch.swimT*0.42)*1.5;
+    ch.root.position.z = ch.spot.z + Math.cos(ch.swimT*0.34)*1.1;
+    ch.root.rotation.y = Math.atan2(Math.cos(ch.swimT*0.42), -Math.sin(ch.swimT*0.34));
+    if (ch.cur !== ch.actions['Idle_Talking_Loop'] && Math.random() < 0.004) playAction(ch,'Idle_Talking_Loop');
+    if (ch.t<=0){
+      releaseOutdoor(ch);
+      ch.root.position.set(ch.root.position.x, 0.22, POOL.z0 - 1.4);
+      if (ch.ring) ch.ring.visible = true;
+      ch.state='idle'; ch.t=1.5; playAction(ch,'Idle_Loop');
+    }
+    return;
+  }
+  else if (ch.state==='tennis'){
+    ch.tennisT += dt;
+    /* shuffle along the baseline and swing when the ball comes over */
+    ch.root.position.x = ch.homeX + Math.sin(ch.tennisT*1.15)*2.1;
+    ch.root.rotation.y = ch.spot.rot;
+    const phase = (ch.tennisT % 2.0);
+    const mine = (ch.spot === OUTDOOR.tennis[0]) ? phase < 1.0 : phase >= 1.0;
+    if (mine && !ch.swung && phase % 1.0 > 0.55){
+      ch.swung = true; playAction(ch, ch.actions['Interact'] ? 'Interact' : 'Yes', true);
+    } else if (!mine){ ch.swung = false; }
+    if (ch.t<=0){
+      releaseOutdoor(ch);
+      ch.state='idle'; ch.t=1.5; ch.cur=null; playAction(ch,'Idle_Loop');
+    }
+    return;
+  }
   else if (ch.state==='sitEnter' && ch.t<=0){ ch.state='sit'; ch.t = 12+Math.random()*16; playAction(ch,'Sitting_Idle_Loop'); }
   else if (ch.state==='sit' && ch.t<=0){ ch.state='sitExit'; ch.t=1.0; playAction(ch,'Sitting_Exit',true); }
   else if (ch.state==='sitExit' && ch.t<=0){
@@ -2137,7 +2361,7 @@ function updateChar(ch, dt){
   else if (ch.state==='act' && ch.t<=0){ ch.state='idle'; ch.t=2+Math.random()*4; playAction(ch,'Idle_Loop'); }
   /* bubble: live activity + personality quips */
   ch.bubT -= dt;
-  if (ch.state==='greet' || ch.state==='layDown' || ch.state==='wake' || ch.goingToBed) return;
+  if (['greet','layDown','wake','swim','tennis','sunbathe'].includes(ch.state) || ch.goingToBed) return;
   const show = ch.bubT <= 0 && ch.bubT > -6;
   if (ch.bubT <= -18) { ch.bubT = 9+Math.random()*13; ch.nextQuip = null; }
   const st2 = DATA['agent-status'][ch.cfg.key];
@@ -2332,10 +2556,40 @@ canvas.addEventListener('dblclick', e=>{
     followChar = chars.find(c=>c.root===n) || null; }
   else followChar = null;
 });
+const KEYS = {};
 document.addEventListener('keydown', e=>{
-  if (e.key==='Escape') followChar = null;
+  if (e.key==='Escape'){ followChar = null; }
   if (e.key==='v' || e.key==='V') cycleView();
+  if (e.key==='r' || e.key==='R') resetCamera();
+  KEYS[e.key.toLowerCase()] = true;
 });
+document.addEventListener('keyup', e=>{ KEYS[e.key.toLowerCase()] = false; });
+function resetCamera(){
+  if (!controls) return;
+  followChar = null;
+  controls.target.set(8, 0, -4);
+  camera.position.set(40, 31, 40);
+  camera.zoom = 1; camera.updateProjectionMatrix(); controls.update();
+}
+/* WASD / arrow keys glide the camera across the lot; Q and E swing it around */
+function keyboardCamera(dt){
+  if (!controls || followChar) return;
+  const pan = new THREE.Vector3();
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const sp = 16 * dt / Math.max(0.4, camera.zoom);
+  if (KEYS['w'] || KEYS['arrowup'])    pan.addScaledVector(fwd, sp);
+  if (KEYS['s'] || KEYS['arrowdown'])  pan.addScaledVector(fwd, -sp);
+  if (KEYS['a'] || KEYS['arrowleft'])  pan.addScaledVector(right, -sp);
+  if (KEYS['d'] || KEYS['arrowright']) pan.addScaledVector(right, sp);
+  if (pan.lengthSq() > 0){ controls.target.add(pan); camera.position.add(pan); }
+  if (KEYS['q'] || KEYS['e']){
+    const ang = (KEYS['q'] ? 1 : -1) * dt * 1.1;
+    const off = new THREE.Vector3().subVectors(camera.position, controls.target);
+    off.applyAxisAngle(new THREE.Vector3(0,1,0), ang);
+    camera.position.copy(controls.target).add(off);
+  }
+}
 { const cv = $('chip-view'); if (cv) cv.addEventListener('click', cycleView); }
 { const cf = $('chip-fx'); if (cf) cf.addEventListener('click', ()=>{
     const order = ['high','med','low'];
@@ -2377,6 +2631,7 @@ function animate(){
       else if (fps < 42 && QUALITY.level === 'high'){ QUALITY.level = 'med'; applyQuality(); }
     }
   }
+  keyboardCamera(step);
   updateBursts(step);
   if (poolWater) poolWater.material.uniforms.uTime.value += step;
   if (composer && FX.on) composer.render(step); else renderer.render(scene, camera);
@@ -2404,6 +2659,55 @@ function animate(){
     window._chars = chars; window._nodeOf = nodeOf; window._cam = camera; window._controls = controls;
     window._scene = scene; window._renderer = renderer;
     window._setView = m=>{ viewMode = m; applyView(); };
+    window._forceOutdoor = (ch, kind, partner)=>{
+      releaseOutdoor(ch); releaseSeat(ch);
+      if (kind==='tennis' && partner){
+        releaseOutdoor(partner); releaseSeat(partner);
+        OUTDOOR.tennis[0].busy = OUTDOOR.tennis[1].busy = true;
+        ch.spot = OUTDOOR.tennis[0]; partner.spot = OUTDOOR.tennis[1];
+        ch.outKind = partner.outKind = 'tennis'; ch.rally = partner; partner.rally = ch;
+        setDestination(ch, new THREE.Vector3(ch.spot.x, 0.22, ch.spot.z), null);
+        setDestination(partner, new THREE.Vector3(partner.spot.x, 0.22, partner.spot.z), null);
+        return;
+      }
+      const list = kind==='lounge' ? OUTDOOR.loungers : OUTDOOR.pool;
+      const sp = list.find(o=>!o.busy); if (!sp) return;
+      sp.busy = true; ch.spot = sp; ch.outKind = kind;
+      setDestination(ch, new THREE.Vector3(kind==='lounge'? sp.x : sp.x, 0.22,
+        kind==='lounge' ? sp.z + 1.6 : POOL.z0 - 1.3), null);
+    };
+    window._snapOutdoor = (ch, kind, partner)=>{
+      releaseOutdoor(ch); releaseSeat(ch); ch.path = null;
+      if (kind === 'tennis' && partner){
+        releaseOutdoor(partner); releaseSeat(partner); partner.path = null;
+        OUTDOOR.tennis[0].busy = OUTDOOR.tennis[1].busy = true;
+        [[ch, 0], [partner, 1]].forEach(([c, i])=>{
+          c.spot = OUTDOOR.tennis[i]; c.outKind = 'tennis';
+          c.root.position.set(c.spot.x, 0.22, c.spot.z); c.root.rotation.set(0, c.spot.rot, 0);
+          c.state = 'tennis'; c.t = 60; c.tennisT = i*0.7; c.homeX = c.spot.x;
+          if (!c.racket) c.racket = makeRacket(c);
+          c.racket.visible = true; c.cur = null; playAction(c, 'Idle_Loop');
+        });
+        return;
+      }
+      const list = kind === 'lounge' ? OUTDOOR.loungers : OUTDOOR.pool;
+      const sp = list.find(o=>!o.busy); if (!sp) return;
+      sp.busy = true; ch.spot = sp; ch.outKind = kind;
+      if (kind === 'lounge'){
+        if (LAY_TILT === null) solveLayTilt(ch);
+        ch.layP0 = ch.root.position.clone(); ch.layYaw0 = 0;
+        const lyaw = sp.rot || 0;
+        ch.layTo = { x: sp.x - LAY_MID_DZ*Math.sin(lyaw), y: 0.75 - LAY_PELVIS_DY,
+                     z: sp.z - LAY_MID_DZ*Math.cos(lyaw), yaw: lyaw };
+        ch.layDur = 1; if (ch.ring) ch.ring.visible = false; if (ch.pip) ch.pip.visible = false;
+        applyLay(ch, 1); holdAsleep(ch); ch.state = 'sunbathe'; ch.t = 90;
+      } else {
+        ch.root.position.set(sp.x, -0.62, sp.z);
+        ch.state = 'swim'; ch.t = 90; ch.swimT = Math.random()*4;
+        if (ch.ring) ch.ring.visible = false; ch.cur = null; playAction(ch, 'Idle_Loop');
+      }
+    };
+    window._gtaoOff = ()=>{ if(gtao) gtao.enabled=false; };
     window._BEDS = BEDS; window._F2Y = FLOOR2_Y; window.THREE_V3 = THREE.Vector3;
     window._startLay = startLay; window._applyLay = applyLay; window._holdAsleep = holdAsleep;
     window._layInfo = ()=>({ tilt:LAY_TILT, pelvisDY:LAY_PELVIS_DY, midDZ:LAY_MID_DZ, headDZ:LAY_HEAD_DZ });
