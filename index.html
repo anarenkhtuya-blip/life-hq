@@ -2903,7 +2903,22 @@ function animate(){
   acc += dt;
   if (acc < 1/FPS_CAP) return;
   const step = acc; acc = 0;
-  for (const ch of chars) updateChar(ch, step);
+  for (const ch of chars){
+    try { updateChar(ch, step); }
+    catch(err){
+      if (!ch._errLogged){ ch._errLogged = true; console.error('updateChar failed for', ch.cfg.key, err); }
+      /* park the character in a safe state so it cannot keep throwing */
+      try {
+        if (typeof releaseOutdoor === 'function') releaseOutdoor(ch);
+        if (typeof releaseSeat === 'function') releaseSeat(ch);
+        ch.path = null; ch.goingToBed = false;
+        ch.root.rotation.set(0, ch.root.rotation.y, 0);
+        ch.root.position.set(0, 0.22, -13.5);
+        if (ch.ring) ch.ring.visible = true;
+        ch.state = 'idle'; ch.t = 2; ch.cur = null; playAction(ch, 'Idle_Loop');
+      } catch(e2){}
+    }
+  }
   if (WALLPAPER){
     sway += step*0.05;
     const r = 46.0;
@@ -2927,10 +2942,10 @@ function animate(){
       else if (fps < 42 && QUALITY.level === 'high'){ QUALITY.level = 'med'; applyQuality(); }
     }
   }
-  keyboardCamera(step);
-  updateRally(step);
-  updateRipples(step);
-  updateBursts(step);
+  try { keyboardCamera(step); } catch(err){ console.error('keyboardCamera(step)', err); }
+  try { updateRally(step); } catch(err){ console.error('updateRally(step)', err); }
+  try { updateRipples(step); } catch(err){ console.error('updateRipples(step)', err); }
+  try { updateBursts(step); } catch(err){ console.error('updateBursts(step)', err); }
   if (poolWater) poolWater.material.uniforms.uTime.value += step;
   if (composer && FX.on) composer.render(step); else renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
